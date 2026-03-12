@@ -19,6 +19,9 @@ urlpatterns = [
     path('profile/',         views.ProfileView.as_view(),        name='profile'),
     path('change-password/', views.ChangePasswordView.as_view(), name='change-password'),
 
+    # Manager/admin: list all customer accounts
+    path('clients/',         views.ClientListView.as_view(),     name='client-list'),
+
     # Admin only
     path('',                 views.UserListView.as_view(),       name='user-list'),
 ]

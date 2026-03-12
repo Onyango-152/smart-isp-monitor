@@ -4,6 +4,10 @@ from . import views
 app_name = 'metrics'
 
 urlpatterns = [
+    # Root snapshot list — GET /api/metrics/?device=<id>
+    # Returns flat MetricModel-compatible snapshots (one per device).
+    path('',                             views.DeviceMetricSnapshotListView.as_view(), name='snapshot-list'),
+
     # Metric type management
     path('types/',                       views.MetricListView.as_view(),              name='type-list'),
     path('types/<int:pk>/',              views.MetricDetailView.as_view(),            name='type-detail'),

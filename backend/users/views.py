@@ -17,75 +17,73 @@ User = get_user_model()
 
 class RegisterView(generics.CreateAPIView):
     """
-    User Registration View
-    
-    Allows new users to create an account with email and password.
-    Returns JWT tokens (access and refresh) upon successful registration.
-    
     POST /api/users/register/
+
+    Creates a new user and immediately returns JWT tokens plus the full
+    user profile so the mobile client can navigate straight to the
+    role-appropriate dashboard.
     """
-    queryset = User.objects.all()
-    serializer_class = RegisterSerializer
+    queryset           = User.objects.all()
+    serializer_class   = RegisterSerializer
     permission_classes = [AllowAny]
-    
-    def perform_create(self, serializer):
-        """Override to set password hash before saving"""
-        user = serializer.save()
-        user.set_password(serializer.validated_data['password'])
-        user.save()
-    
+
     def create(self, request, *args, **kwargs):
-        """Override to return tokens on successful registration"""
-        response = super().create(request, *args, **kwargs)
-        user = User.objects.get(username=response.data['username'])
-        
-        # Generate JWT tokens
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
         refresh = RefreshToken.for_user(user)
-        response.data['tokens'] = {
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }
-        response.data['message'] = 'User registered successfully'
-        return response
+        return Response({
+            'user':    UserProfileSerializer(user).data,
+            'tokens':  {
+                'refresh': str(refresh),
+                'access':  str(refresh.access_token),
+            },
+            'message': 'Account created successfully.',
+        }, status=status.HTTP_201_CREATED)
 
 
 class LoginView(APIView):
     """
-    User Login View
-    
-    Authenticates user with username and password, returns JWT tokens.
-    
     POST /api/users/login/
-    {
-        "username": "user@example.com",
-        "password": "password123"
-    }
+
+    Accepts username OR email plus password.
+    Returns JWT tokens and the full user profile.
     """
     permission_classes = [AllowAny]
-    serializer_class = LoginSerializer
-    
+    serializer_class   = LoginSerializer
+
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            username = serializer.validated_data['username']
-            password = serializer.validated_data['password']
-            
-            user = authenticate(username=username, password=password)
-            if user:
-                refresh = RefreshToken.for_user(user)
-                return Response({
-                    'user': UserProfileSerializer(user).data,
-                    'tokens': {
-                        'refresh': str(refresh),
-                        'access': str(refresh.access_token),
-                    }
-                }, status=status.HTTP_200_OK)
-            else:
-                return Response(
-                    {'error': 'Invalid credentials'},
-                    status=status.HTTP_401_UNAUTHORIZED
-                )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        identifier = serializer.validated_data['username']
+        password   = serializer.validated_data['password']
+
+        # Try username first, then email
+        user = authenticate(username=identifier, password=password)
+        if user is None:
+            try:
+                user_obj = User.objects.get(email=identifier)
+                user     = authenticate(username=user_obj.username, password=password)
+            except User.DoesNotExist:
+                pass
+
+        if user is None:
+            return Response(
+                {'error': 'Invalid credentials.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'user':   UserProfileSerializer(user).data,
+            'tokens': {
+                'refresh': str(refresh),
+                'access':  str(refresh.access_token),
+            },
+        }, status=status.HTTP_200_OK)
 
 
 class LogoutView(APIView):
@@ -223,3 +221,18 @@ class UserListView(generics.ListCreateAPIView):
             )
         return super().get(request, *args, **kwargs)
 
+
+class ClientListView(generics.ListAPIView):
+    """
+    GET /api/users/clients/
+    Returns all users with role='customer'.
+    Accessible to managers and admins only.
+    """
+    serializer_class   = UserListSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role not in ('manager', 'admin') and not user.is_staff:
+            return User.objects.none()
+        return User.objects.filter(role='customer').order_by('-date_joined')

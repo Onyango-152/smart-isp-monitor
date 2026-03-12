@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../data/troubleshoot_data.dart';
 import '../../data/models/device_model.dart';
+import '../../data/troubleshoot_data.dart';
 
-/// TroubleshootProvider manages the state of the troubleshooting wizard.
-/// It tracks which step the technician is on, which steps are marked
-/// done, and whether the overall issue has been resolved.
 class TroubleshootProvider extends ChangeNotifier {
-
   final DeviceModel          device;
   final TroubleshootScenario scenario;
   final double?              measuredValue;
@@ -22,11 +18,9 @@ class TroubleshootProvider extends ChangeNotifier {
   int  _currentStep   = 0;
   bool _isResolved    = false;
   bool _showingResult = false;
+  String _resolutionNote = '';
 
-  // Which steps the technician has marked as done
-  final Set<int> _completedSteps = {};
-
-  // Notes the technician can add to each step
+  final Set<int>    _completedSteps = {};
   final Map<int, String> _stepNotes = {};
 
   int  get currentStep      => _currentStep;
@@ -36,26 +30,36 @@ class TroubleshootProvider extends ChangeNotifier {
   bool get isLastStep       => _currentStep >= scenario.steps.length - 1;
   bool get allStepsComplete => _completedSteps.length == scenario.steps.length;
   Set<int> get completedSteps => _completedSteps;
+  String get resolutionNote => _resolutionNote;
 
-  TroubleshootStep get currentStepData =>
-      scenario.steps[_currentStep];
+  TroubleshootStep get currentStepData => scenario.steps[_currentStep];
 
-  bool isStepCompleted(int index) => _completedSteps.contains(index);
-  String? getStepNote(int index)  => _stepNotes[index];
+  bool    isStepCompleted(int index) => _completedSteps.contains(index);
+  String? getStepNote(int index)     => _stepNotes[index];
 
-  /// Marks the current step as done and advances to the next.
+  double get progressPct =>
+      _completedSteps.length / scenario.steps.length;
+
   void completeCurrentStep({String? note}) {
     _completedSteps.add(_currentStep);
-    if (note != null && note.isNotEmpty) {
-      _stepNotes[_currentStep] = note;
-    }
-    if (!isLastStep) {
-      _currentStep++;
+    if (note != null && note.isNotEmpty) _stepNotes[_currentStep] = note;
+    if (!isLastStep) _currentStep++;
+    notifyListeners();
+  }
+
+  void toggleStep(int index) {
+    if (_completedSteps.contains(index)) {
+      _completedSteps.remove(index);
+    } else {
+      _completedSteps.add(index);
     }
     notifyListeners();
   }
 
-  /// Allows the technician to jump to a specific step.
+  void setResolutionNote(String note) {
+    _resolutionNote = note;
+  }
+
   void goToStep(int index) {
     if (index >= 0 && index < scenario.steps.length) {
       _currentStep = index;
@@ -63,29 +67,24 @@ class TroubleshootProvider extends ChangeNotifier {
     }
   }
 
-  /// Called when all steps are complete and the issue is resolved.
   void markResolved() {
     _isResolved    = true;
     _showingResult = true;
     notifyListeners();
   }
 
-  /// Called when the technician skips to the end without completing all steps.
   void escalate() {
     _showingResult = true;
     notifyListeners();
   }
 
-  /// Resets the wizard to start from the beginning.
   void restart() {
     _currentStep   = 0;
     _isResolved    = false;
     _showingResult = false;
+    _resolutionNote = '';
     _completedSteps.clear();
     _stepNotes.clear();
     notifyListeners();
   }
-
-  double get progressPct =>
-      _completedSteps.length / scenario.steps.length;
 }

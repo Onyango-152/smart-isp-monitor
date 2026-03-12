@@ -52,6 +52,19 @@ class DeviceListView(generics.ListCreateAPIView):
             serializer.save()
 
 
+class MyDevicesView(generics.ListAPIView):
+    """
+    GET /api/devices/my-devices/
+    Returns only the devices assigned to the requesting user.
+    Intended for the customer portal — each customer sees only their equipment.
+    """
+    serializer_class   = DeviceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Device.objects.filter(assigned_to=self.request.user).order_by('name')
+
+
 class DeviceDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     Device Detail View

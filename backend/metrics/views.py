@@ -12,6 +12,90 @@ from .serializers import (
     MetricSerializer, MetricReadingSerializer, MetricThresholdSerializer
 )
 
+# Maps normalised metric names (lower-case, spaces→underscores) to the flat
+# field names the Flutter MetricModel.fromJson expects.
+_METRIC_FIELD_MAP = {
+    'latency':            'latency_ms',
+    'latency_ms':         'latency_ms',
+    'packet_loss':        'packet_loss_pct',
+    'packet_loss_pct':    'packet_loss_pct',
+    'bandwidth_in':       'bandwidth_in_bps',
+    'bandwidth_in_bps':   'bandwidth_in_bps',
+    'bandwidth_out':      'bandwidth_out_bps',
+    'bandwidth_out_bps':  'bandwidth_out_bps',
+    'cpu_usage':          'cpu_usage_pct',
+    'cpu_usage_pct':      'cpu_usage_pct',
+    'cpu':                'cpu_usage_pct',
+    'memory_usage':       'memory_usage_pct',
+    'memory_usage_pct':   'memory_usage_pct',
+    'memory':             'memory_usage_pct',
+    'interface_errors':   'interface_errors',
+    'errors':             'interface_errors',
+    'uptime':             'uptime_seconds',
+    'uptime_seconds':     'uptime_seconds',
+}
+
+
+class DeviceMetricSnapshotListView(APIView):
+    """
+    GET /api/metrics/?device=<id>
+
+    Returns one flat snapshot object per device, aggregating the latest
+    metric reading of each type into the format Flutter's MetricModel
+    expects.  Readings older than 7 days are excluded.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        device_id = request.query_params.get('device')
+        cutoff    = timezone.now() - timedelta(days=7)
+
+        devices = (
+            Device.objects.filter(pk=device_id) if device_id
+            else Device.objects.all()
+        )
+
+        snapshots = []
+        for device in devices:
+            readings = (
+                MetricReading.objects
+                .filter(device=device, timestamp__gte=cutoff)
+                .select_related('metric')
+                .order_by('metric_id', '-timestamp')
+            )
+            # Pick the latest reading per metric type (first occurrence after
+            # ordering descending by timestamp within each metric group).
+            seen:    set  = set()
+            latest:  list = []
+            for r in readings:
+                if r.metric_id not in seen:
+                    seen.add(r.metric_id)
+                    latest.append(r)
+
+            snapshot: dict = {
+                'id':               device.id,
+                'device_id':        device.id,
+                'latency_ms':       None,
+                'packet_loss_pct':  None,
+                'bandwidth_in_bps': None,
+                'bandwidth_out_bps':None,
+                'cpu_usage_pct':    None,
+                'memory_usage_pct': None,
+                'interface_errors': None,
+                'uptime_seconds':   None,
+                'poll_method':      'auto',
+                'recorded_at':      timezone.now().isoformat(),
+            }
+            for r in latest:
+                key = r.metric.name.lower().replace('-', '_').replace(' ', '_')
+                flat_field = _METRIC_FIELD_MAP.get(key)
+                if flat_field:
+                    snapshot[flat_field] = r.value
+
+            snapshots.append(snapshot)
+
+        return Response(snapshots)
+
 
 class MetricListView(generics.ListCreateAPIView):
     """

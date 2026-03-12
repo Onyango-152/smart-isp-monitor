@@ -30,7 +30,7 @@ SECRET_KEY = 'django-insecure-yve2v!qt^-7(i)(0z-d+2tjdxodxubi@e#)iqu^1&n)%1$ony^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
 
 # Application definition
@@ -157,10 +157,30 @@ REST_FRAMEWORK = {
 }
 
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:8080',
+# Flutter web (Chrome) uses a random high port on localhost.
+# Android emulator calls the host machine via 10.0.2.2.
+# CORS_ALLOW_ALL_ORIGINS is only safe in DEBUG; production must list origins explicitly.
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:8080',
+        'http://10.0.2.2:8000',
+    ]
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
 ]
 
 # JWT Configuration

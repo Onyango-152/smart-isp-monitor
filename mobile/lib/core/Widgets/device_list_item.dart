@@ -123,7 +123,7 @@ class DeviceListItem extends StatelessWidget {
                     Row(
                       children: [
                         // StatusBadge widget we built yesterday
-                        StatusBadge(status: device.status, small: true),
+                        StatusBadge(status: device.status, size: BadgeSize.small),
 
                         const SizedBox(width: 10),
 

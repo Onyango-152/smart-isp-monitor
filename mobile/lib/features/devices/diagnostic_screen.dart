@@ -1,28 +1,17 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/utils.dart';
 import '../../data/models/device_model.dart';
 
-/// DiagnosticResult holds the outcome of a single diagnostic check.
-class DiagnosticResult {
-  final String     checkName;
-  final bool       passed;
-  final String     finding;     // what was found
-  final String     alertType;   // what alert type this maps to for troubleshooting
-  final double?    value;       // the measured value
-  final double?    threshold;   // the threshold it was compared against
-
-  const DiagnosticResult({
-    required this.checkName,
-    required this.passed,
-    required this.finding,
-    required this.alertType,
-    this.value,
-    this.threshold,
-  });
-}
-
+/// DiagnosticScreen simulates a live ICMP ping diagnostic against
+/// the selected device. Sends 10 pings one by one with a visual
+/// result for each, then shows a final pass/fail verdict card.
+///
+/// Receives a DeviceModel via route arguments:
+///   Navigator.pushNamed(context, AppConstants.diagnosticRoute, arguments: device)
 class DiagnosticScreen extends StatefulWidget {
   const DiagnosticScreen({super.key});
 
@@ -31,335 +20,199 @@ class DiagnosticScreen extends StatefulWidget {
 }
 
 class _DiagnosticScreenState extends State<DiagnosticScreen> {
-
   bool _isRunning  = false;
   bool _isComplete = false;
+  int  _currentPing = 0;
 
-  // Each check goes through these phases:
-  // 0 = waiting, 1 = running, 2 = complete
-  final Map<String, int> _checkPhase = {
-    'ping':      0,
-    'mac_table': 0,
-    'cpu':       0,
-    'memory':    0,
-    'interface': 0,
-    'bandwidth': 0,
-  };
+  final List<_PingResult> _results = [];
 
-  final List<DiagnosticResult> _results = [];
+  double? _avgLatency;
+  double? _minLatency;
+  double? _maxLatency;
+  double? _packetLoss;
 
-  // Simulated MAC table data — this is the core of today's scenario
-  int    _macTableCurrent = 0;
-  int    _macTableMax     = 1000;
-  double _macTablePct     = 0;
+  static const int _totalPings = 10;
+
+  // ── Traceroute state ──────────────────────────────────────────────────────
+  bool _isTracerouting       = false;
+  bool _tracerouteComplete   = false;
+  final List<_TracerouteHop> _hops = [];
+
+  // device is read lazily on first use because ModalRoute is not
+  // available until the widget is fully mounted.
+  DeviceModel? _device;
 
   @override
   void initState() {
     super.initState();
+    // Use addPostFrameCallback so ModalRoute.of(context) is ready.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _runFullDiagnostic();
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is DeviceModel) {
+        setState(() => _device = args);
+        _startDiagnostic(args);
+      }
     });
   }
 
-  Future<void> _runFullDiagnostic() async {
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args == null || args is! DeviceModel) return;
-    final device = args;
-
+  Future<void> _startDiagnostic(DeviceModel device) async {
     setState(() {
-      _isRunning  = true;
-      _isComplete = false;
+      _isRunning   = true;
+      _isComplete  = false;
+      _currentPing = 0;
       _results.clear();
-      _checkPhase.updateAll((key, _) => 0);
+      _avgLatency  = null;
+      _minLatency  = null;
+      _maxLatency  = null;
+      _packetLoss  = null;
     });
 
-    // Run each check sequentially with a delay between them
-    // to simulate real network queries
+    final bool isOffline  = device.status == AppConstants.statusOffline;
+    final bool isDegraded = device.status == AppConstants.statusDegraded;
 
-    await _runPingCheck(device);
-    await _runMacTableCheck(device);
-    await _runCpuCheck(device);
-    await _runMemoryCheck(device);
-    await _runInterfaceCheck(device);
-    await _runBandwidthCheck(device);
+    for (int i = 1; i <= _totalPings; i++) {
+      await Future.delayed(const Duration(milliseconds: 600));
+      if (!mounted) return;
 
+      _PingResult result;
+
+      if (isOffline) {
+        result = _PingResult(
+          sequence:  i,
+          success:   false,
+          latencyMs: null,
+          message:   'Request timeout',
+        );
+      } else if (isDegraded) {
+        final failed  = i == 3 || i == 7;
+        final latency = failed ? null : 200.0 + (i * 12.5);
+        result = _PingResult(
+          sequence:  i,
+          success:   !failed,
+          latencyMs: latency,
+          message:   failed
+              ? 'Request timeout'
+              : 'Reply from ${device.ipAddress}: time=${latency!.toStringAsFixed(1)}ms',
+        );
+      } else {
+        final latency = 8.0 + (i % 3) * 4.2;
+        result = _PingResult(
+          sequence:  i,
+          success:   true,
+          latencyMs: latency,
+          message:   'Reply from ${device.ipAddress}: time=${latency.toStringAsFixed(1)}ms',
+        );
+      }
+
+      setState(() {
+        _results.add(result);
+        _currentPing = i;
+      });
+    }
+
+    _computeSummary();
     setState(() {
       _isRunning  = false;
       _isComplete = true;
     });
+
+    // Automatically start traceroute after ping
+    _startTraceroute(device);
   }
 
-  // ── Individual Checks ─────────────────────────────────────────────────────
+  // ── Traceroute simulation ─────────────────────────────────────────────────
 
-  Future<void> _runPingCheck(DeviceModel device) async {
-    _setPhase('ping', 1);
-    await Future.delayed(const Duration(milliseconds: 900));
+  Future<void> _startTraceroute(DeviceModel device) async {
+    setState(() {
+      _isTracerouting     = true;
+      _tracerouteComplete = false;
+      _hops.clear();
+    });
 
-    bool   passed;
-    String finding;
-    double latency = 0;
+    final rng   = Random(device.ipAddress.hashCode);
+    final isOff = device.status == AppConstants.statusOffline;
 
-    if (device.status == AppConstants.statusOffline) {
-      passed  = false;
-      finding = 'Device is completely unreachable. 10/10 pings timed out.';
-      latency = 0;
-    } else if (device.status == AppConstants.statusDegraded) {
-      passed  = false;
-      finding = 'High latency detected. Average: 245ms (threshold: 200ms). '
-          '2/10 packets lost.';
-      latency = 245;
-    } else {
-      passed  = true;
-      finding = 'Device responding normally. Average latency: 12ms. '
-          '0/10 packets lost.';
-      latency = 12;
-    }
+    final hopCount   = isOff ? 4 : 4 + rng.nextInt(4); // 4-7 hops
+    final hostnames  = [
+      'gateway.local',
+      'core-sw01.isp.net',
+      'agg-rtr02.isp.net',
+      'pe-rtr01.region.net',
+      'bras01.pop.net',
+      'dist-sw03.site.net',
+      device.ipAddress,
+    ];
 
-    _addResult(DiagnosticResult(
-      checkName: 'ICMP Ping Test',
-      passed:    passed,
-      finding:   finding,
-      alertType: passed ? '' : (latency == 0 ? 'device_offline' : 'high_latency'),
-      value:     latency,
-      threshold: 200,
-    ));
-    _setPhase('ping', 2);
-  }
+    for (int i = 0; i < hopCount; i++) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
 
-  Future<void> _runMacTableCheck(DeviceModel device) async {
-    _setPhase('mac_table', 1);
-    await Future.delayed(const Duration(milliseconds: 1100));
+      final isLast   = i == hopCount - 1;
+      final hostname = i < hostnames.length ? hostnames[i] : '10.${rng.nextInt(255)}.${rng.nextInt(255)}.1';
+      final ip       = isLast ? device.ipAddress : '10.${10 + i}.${rng.nextInt(255)}.1';
 
-    // MAC table check is most important for OLT devices
-    // but we run it on all devices for completeness
-    bool   passed;
-    String finding;
-    String alertType = '';
-
-    if (device.deviceType == 'olt') {
-      // Simulate OLT with a nearly full MAC table
-      // This is the core of our scenario — 873 out of 1000 entries used
-      _macTableCurrent = 873;
-      _macTableMax     = 1000;
-      _macTablePct     = (_macTableCurrent / _macTableMax) * 100;
-
-      if (_macTablePct >= 95) {
-        passed    = false;
-        alertType = 'mac_table_overflow';
-        finding   = 'CRITICAL: MAC table at ${_macTablePct.toStringAsFixed(1)}% capacity '
-            '($_macTableCurrent/$_macTableMax entries). '
-            'New customers cannot connect. Immediate action required.';
-      } else if (_macTablePct >= 85) {
-        passed    = false;
-        alertType = 'mac_table_overflow';
-        finding   = 'WARNING: MAC table at ${_macTablePct.toStringAsFixed(1)}% capacity '
-            '($_macTableCurrent/$_macTableMax entries). '
-            'Risk of disconnections. Action required soon.';
-      } else if (_macTablePct >= 70) {
-        passed    = false;
-        alertType = 'mac_table_warning';
-        finding   = 'NOTICE: MAC table at ${_macTablePct.toStringAsFixed(1)}% capacity '
-            '($_macTableCurrent/$_macTableMax entries). '
-            'Monitor closely. Plan maintenance.';
+      double? latency;
+      if (isOff && isLast) {
+        latency = null; // timeout at final hop
       } else {
-        passed  = true;
-        finding = 'MAC table healthy at ${_macTablePct.toStringAsFixed(1)}% capacity '
-            '($_macTableCurrent/$_macTableMax entries).';
+        latency = 1.0 + i * (3.0 + rng.nextDouble() * 5.0);
+        if (device.status == AppConstants.statusDegraded) {
+          latency += 50.0 + rng.nextDouble() * 80.0;
+        }
       }
-    } else {
-      // Non-OLT devices — simulate a healthy MAC table
-      _macTableCurrent = 124;
-      _macTableMax     = 8192;
-      _macTablePct     = (_macTableCurrent / _macTableMax) * 100;
-      passed  = true;
-      finding = 'MAC table healthy. '
-          '$_macTableCurrent/$_macTableMax entries used '
-          '(${_macTablePct.toStringAsFixed(1)}%).';
+
+      setState(() {
+        _hops.add(_TracerouteHop(
+          hop:      i + 1,
+          hostname: hostname,
+          ip:       ip,
+          latencyMs: latency,
+        ));
+      });
     }
 
-    _addResult(DiagnosticResult(
-      checkName: 'MAC Address Table',
-      passed:    passed,
-      finding:   finding,
-      alertType: alertType,
-      value:     _macTablePct,
-      threshold: 85,
-    ));
-    _setPhase('mac_table', 2);
+    setState(() {
+      _isTracerouting     = false;
+      _tracerouteComplete = true;
+    });
   }
 
-  Future<void> _runCpuCheck(DeviceModel device) async {
-    _setPhase('cpu', 1);
-    await Future.delayed(const Duration(milliseconds: 800));
+  void _computeSummary() {
+    final successful = _results.where((r) => r.success).toList();
+    final latencies  = successful.map((r) => r.latencyMs!).toList();
 
-    double cpu;
-    bool   passed;
-    String finding;
-
-    if (device.status == AppConstants.statusDegraded) {
-      cpu     = 78.0;
-      passed  = false;
-      finding = 'CPU usage elevated at ${cpu.toStringAsFixed(0)}% '
-          '(threshold: 80%). Monitor closely.';
-    } else if (device.status == AppConstants.statusOffline) {
-      cpu     = 0;
-      passed  = false;
-      finding = 'CPU data unavailable — device unreachable.';
-    } else {
-      cpu     = 34.0;
-      passed  = true;
-      finding = 'CPU usage normal at ${cpu.toStringAsFixed(0)}%.';
+    _packetLoss = ((_totalPings - successful.length) / _totalPings) * 100;
+    if (latencies.isNotEmpty) {
+      _avgLatency = latencies.reduce((a, b) => a + b) / latencies.length;
+      _minLatency = latencies.reduce((a, b) => a < b ? a : b);
+      _maxLatency = latencies.reduce((a, b) => a > b ? a : b);
     }
-
-    _addResult(DiagnosticResult(
-      checkName: 'CPU Utilisation',
-      passed:    passed,
-      finding:   finding,
-      alertType: passed ? '' : 'high_cpu',
-      value:     cpu,
-      threshold: 80,
-    ));
-    _setPhase('cpu', 2);
   }
 
-  Future<void> _runMemoryCheck(DeviceModel device) async {
-    _setPhase('memory', 1);
-    await Future.delayed(const Duration(milliseconds: 700));
-
-    double memory;
-    bool   passed;
-    String finding;
-
-    if (device.status == AppConstants.statusDegraded) {
-      memory  = 85.0;
-      passed  = false;
-      finding = 'Memory usage critical at ${memory.toStringAsFixed(0)}% '
-          '(threshold: 85%). Risk of instability.';
-    } else if (device.status == AppConstants.statusOffline) {
-      memory  = 0;
-      passed  = false;
-      finding = 'Memory data unavailable — device unreachable.';
-    } else {
-      memory  = 52.0;
-      passed  = true;
-      finding = 'Memory usage normal at ${memory.toStringAsFixed(0)}%.';
-    }
-
-    _addResult(DiagnosticResult(
-      checkName: 'Memory Usage',
-      passed:    passed,
-      finding:   finding,
-      alertType: passed ? '' : 'high_memory',
-      value:     memory,
-      threshold: 85,
-    ));
-    _setPhase('memory', 2);
-  }
-
-  Future<void> _runInterfaceCheck(DeviceModel device) async {
-    _setPhase('interface', 1);
-    await Future.delayed(const Duration(milliseconds: 900));
-
-    int    errors;
-    bool   passed;
-    String finding;
-
-    if (device.status == AppConstants.statusDegraded) {
-      errors  = 24;
-      passed  = false;
-      finding = '$errors interface errors detected in the last polling cycle. '
-          'Possible physical layer issue.';
-    } else if (device.status == AppConstants.statusOffline) {
-      errors  = 0;
-      passed  = false;
-      finding = 'Interface data unavailable — device unreachable.';
-    } else {
-      errors  = 0;
-      passed  = true;
-      finding = 'All interfaces clean. Zero errors detected.';
-    }
-
-    _addResult(DiagnosticResult(
-      checkName: 'Interface Errors',
-      passed:    passed,
-      finding:   finding,
-      alertType: passed ? '' : 'interface_error',
-      value:     errors.toDouble(),
-      threshold: 10,
-    ));
-    _setPhase('interface', 2);
-  }
-
-  Future<void> _runBandwidthCheck(DeviceModel device) async {
-    _setPhase('bandwidth', 1);
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    bool   passed;
-    String finding;
-    double utilisation;
-
-    if (device.status == AppConstants.statusOffline) {
-      passed      = false;
-      utilisation = 0;
-      finding     = 'Bandwidth data unavailable — device unreachable.';
-    } else {
-      utilisation = device.status == AppConstants.statusDegraded ? 72 : 38;
-      passed      = utilisation < 80;
-      finding     = passed
-          ? 'Bandwidth utilisation normal at '
-              '${utilisation.toStringAsFixed(0)}%.'
-          : 'Bandwidth utilisation high at '
-              '${utilisation.toStringAsFixed(0)}% — near saturation.';
-    }
-
-    _addResult(DiagnosticResult(
-      checkName: 'Bandwidth Utilisation',
-      passed:    passed,
-      finding:   finding,
-      alertType: passed ? '' : 'high_latency',
-      value:     utilisation,
-      threshold: 80,
-    ));
-    _setPhase('bandwidth', 2);
-  }
-
-  // ── Helper methods ────────────────────────────────────────────────────────
-
-  void _setPhase(String key, int phase) {
-    setState(() => _checkPhase[key] = phase);
-  }
-
-  void _addResult(DiagnosticResult result) {
-    setState(() => _results.add(result));
-  }
-
-  List<DiagnosticResult> get _failedChecks =>
-      _results.where((r) => !r.passed && r.alertType.isNotEmpty).toList();
-
-  bool get _overallPassed => _failedChecks.isEmpty;
-
-  // ── Build ─────────────────────────────────────────────────────────────────
+  bool get _passed =>
+      (_packetLoss ?? 100) <= 5 && (_avgLatency ?? 999) <= 200;
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args == null || args is! DeviceModel) {
+    // Guard: if device hasn't arrived yet show a loader.
+    if (_device == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Diagnostic')),
-        body: const Center(child: Text('No device selected.')),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
-    final device = args;
+
+    final device = _device!;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Full Diagnostic'),
+        title: const Text('Diagnostic'),
         actions: [
           if (_isComplete)
             TextButton(
-              onPressed: _runFullDiagnostic,
-              child: const Text('Re-run',
+              onPressed: () => _startDiagnostic(device),
+              child: const Text('Run Again',
                   style: TextStyle(color: Colors.white)),
             ),
         ],
@@ -370,42 +223,34 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            // ── Target Device ──────────────────────────────────────────
-            _buildDeviceCard(device),
+            // ── Target device card ───────────────────────────────────────
+            _buildTargetCard(device),
             const SizedBox(height: 16),
 
-            // ── Overall Progress ───────────────────────────────────────
-            _buildProgressCard(),
+            // ── Progress header ──────────────────────────────────────────
+            _buildProgressHeader(),
+            const SizedBox(height: 12),
+
+            // ── Live ping chart ──────────────────────────────────────────
+            if (_results.isNotEmpty)
+              _buildLiveChart(),
+            if (_results.isNotEmpty) const SizedBox(height: 16),
+
+            // ── Ping results table ───────────────────────────────────────
+            _buildPingResults(),
             const SizedBox(height: 16),
 
-            // ── Check Items ────────────────────────────────────────────
-            const Text(
-              'Checks',
-              style: TextStyle(
-                fontSize:   16,
-                fontWeight: FontWeight.bold,
-                color:      AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            _buildCheckRow('ping',      'ICMP Ping Test',         Icons.network_ping),
-            _buildCheckRow('mac_table', 'MAC Address Table',      Icons.table_chart_outlined),
-            _buildCheckRow('cpu',       'CPU Utilisation',        Icons.memory),
-            _buildCheckRow('memory',    'Memory Usage',           Icons.storage),
-            _buildCheckRow('interface', 'Interface Errors',       Icons.cable),
-            _buildCheckRow('bandwidth', 'Bandwidth Utilisation',  Icons.speed),
-
-            // ── MAC Table Detail (shown when OLT and check complete) ───
-            if (_checkPhase['mac_table'] == 2 &&
-                _results.any((r) => r.checkName == 'MAC Address Table'))
-              _buildMacTableDetail(device),
-
-            const SizedBox(height: 16),
-
-            // ── Summary and Actions ─────────────────────────────────────
+            // ── Summary card — shown only after all pings finish ─────────
             if (_isComplete) ...[
               _buildSummaryCard(device),
+              const SizedBox(height: 16),
+            ],
+
+            // ── Traceroute section ───────────────────────────────────────
+            if (_isTracerouting || _tracerouteComplete) ...[
+              _buildTracerouteSection(),
+              const SizedBox(height: 32),
+            ] else if (_isComplete) ...[
               const SizedBox(height: 32),
             ],
           ],
@@ -414,16 +259,16 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
     );
   }
 
-  Widget _buildDeviceCard(DeviceModel device) {
+  // ── Target card ──────────────────────────────────────────────────────────
+
+  Widget _buildTargetCard(DeviceModel device) {
     return Container(
       padding:    const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color:        AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.05), blurRadius: 6),
-        ],
+        boxShadow: [BoxShadow(
+          color: Colors.black.withOpacity(0.05), blurRadius: 6)],
       ),
       child: Row(
         children: [
@@ -441,473 +286,105 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(device.name,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize:   15,
-                        color:      AppColors.textPrimary)),
-                Text('${device.ipAddress}  ·  '
-                    '${AppUtils.deviceTypeLabel(device.deviceType)}',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        color:    AppColors.textSecondary)),
+                Text(device.name, style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize:   15,
+                  color:      AppColors.textPrimary,
+                )),
+                Text(device.ipAddress, style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary)),
               ],
             ),
           ),
           if (_isRunning)
             const SizedBox(
-              width:  18,
-              height: 18,
-              child:  CircularProgressIndicator(strokeWidth: 2),
-            ),
-          if (_isComplete)
-            Icon(
-              _overallPassed ? Icons.check_circle : Icons.cancel,
-              color: _overallPassed ? AppColors.online : AppColors.offline,
-              size: 22,
+              width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildProgressCard() {
-    final completed = _checkPhase.values.where((v) => v == 2).length;
-    final total     = _checkPhase.length;
-    final progress  = completed / total;
+  // ── Progress header ───────────────────────────────────────────────────────
 
-    return Container(
-      padding:    const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color:        AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _isComplete
-                    ? 'Diagnostic Complete'
-                    : _isRunning
-                        ? 'Running checks...'
-                        : 'Ready',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color:      AppColors.textPrimary,
-                ),
-              ),
-              Text(
-                '$completed / $total checks',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color:    AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value:            progress,
-              minHeight:        8,
-              backgroundColor:  AppColors.primarySurface,
-              valueColor:       AlwaysStoppedAnimation<Color>(
-                _isComplete && !_overallPassed
-                    ? AppColors.offline
-                    : AppColors.primary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCheckRow(
-      String key, String label, IconData icon) {
-    final phase  = _checkPhase[key] ?? 0;
-
-    // Find the result for this check if it exists
-    final result = _results.cast<DiagnosticResult?>().firstWhere(
-          (r) => r?.checkName == label,
-          orElse: () => null,
-        );
-
-    return Container(
-      margin:  const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color:        AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: result == null
-              ? AppColors.divider
-              : result.passed
-                  ? AppColors.online.withOpacity(0.3)
-                  : AppColors.offline.withOpacity(0.4),
-          width: result != null && !result.passed ? 1.5 : 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // Check icon
-              Container(
-                padding:    const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: result == null
-                      ? AppColors.primarySurface
-                      : result.passed
-                          ? AppColors.onlineLight
-                          : AppColors.offlineLight,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon,
-                    size:  16,
-                    color: result == null
-                        ? AppColors.primary
-                        : result.passed
-                            ? AppColors.online
-                            : AppColors.offline),
-              ),
-              const SizedBox(width: 10),
-
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize:   14,
-                    color:      AppColors.textPrimary,
-                  ),
-                ),
-              ),
-
-              // Status indicator on the right
-              if (phase == 0)
-                Container(
-                  width:  10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: AppColors.divider,
-                    shape: BoxShape.circle,
-                  ),
-                )
-              else if (phase == 1)
-                const SizedBox(
-                  width:  18,
-                  height: 18,
-                  child:  CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                Icon(
-                  result?.passed ?? false
-                      ? Icons.check_circle
-                      : Icons.cancel,
-                  color: result?.passed ?? false
-                      ? AppColors.online
-                      : AppColors.offline,
-                  size: 20,
-                ),
-            ],
-          ),
-
-          // Finding text — shown when check is complete
-          if (phase == 2 && result != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              result.finding,
-              style: TextStyle(
-                fontSize: 13,
-                color: result.passed
-                    ? AppColors.textSecondary
-                    : AppColors.offline,
-                height: 1.4,
-              ),
-            ),
-
-            // Value vs threshold bar for numeric results
-            if (result.value != null &&
-                result.threshold != null &&
-                result.value! > 0) ...[
-              const SizedBox(height: 8),
-              _buildValueBar(result),
-            ],
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// Builds a visual bar showing current value vs threshold.
-  Widget _buildValueBar(DiagnosticResult result) {
-    final pct = (result.value! / (result.threshold! * 1.5)).clamp(0.0, 1.0);
-    final thresholdPct = 1.0 / 1.5; // where the threshold sits on the bar
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildProgressHeader() {
+    return Row(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '${result.value!.toStringAsFixed(1)}'
-              '${_unitForCheck(result.checkName)}',
-              style: TextStyle(
-                fontSize:   12,
-                fontWeight: FontWeight.bold,
-                color: result.passed
-                    ? AppColors.online
-                    : AppColors.offline,
-              ),
-            ),
-            Text(
-              'Threshold: ${result.threshold!.toStringAsFixed(0)}'
-              '${_unitForCheck(result.checkName)}',
-              style: const TextStyle(
-                fontSize: 11,
-                color:    AppColors.textHint,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Stack(
-          children: [
-            // Background bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value:           pct,
-                minHeight:       6,
-                backgroundColor: AppColors.primarySurface,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  result.passed ? AppColors.online : AppColors.offline,
-                ),
-              ),
-            ),
-            // Threshold marker line
-            Positioned(
-              left: MediaQuery.of(context).size.width *
-                      thresholdPct *
-                      0.78 -
-                  1,
-              top:  0,
-              bottom: 0,
-              child: Container(width: 2, color: AppColors.degraded),
-            ),
-          ],
-        ),
+        const Text('Ping Results', style: TextStyle(
+          fontSize:   16,
+          fontWeight: FontWeight.bold,
+          color:      AppColors.textPrimary,
+        )),
+        const Spacer(),
+        Text('$_currentPing / $_totalPings', style: const TextStyle(
+          fontSize:   14,
+          color:      AppColors.textSecondary,
+          fontWeight: FontWeight.w500,
+        )),
       ],
     );
   }
 
-  String _unitForCheck(String checkName) {
-    if (checkName.contains('CPU') ||
-        checkName.contains('Memory') ||
-        checkName.contains('Bandwidth') ||
-        checkName.contains('MAC')) return '%';
-    if (checkName.contains('Ping') ||
-        checkName.contains('Latency')) return 'ms';
-    return '';
-  }
+  // ── Ping results table ────────────────────────────────────────────────────
 
-  /// Detailed MAC table visualisation — shown for OLT devices.
-  Widget _buildMacTableDetail(DeviceModel device) {
-    if (device.deviceType != 'olt') return const SizedBox.shrink();
-
-    final pct   = _macTablePct;
-    final color = pct >= 95
-        ? AppColors.offline
-        : pct >= 85
-            ? AppColors.severityHigh
-            : pct >= 70
-                ? AppColors.degraded
-                : AppColors.online;
-
+  Widget _buildPingResults() {
     return Container(
-      margin:  const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:        color.withOpacity(0.06),
+        color:        AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border:       Border.all(color: color.withOpacity(0.3)),
+        boxShadow: [BoxShadow(
+          color: Colors.black.withOpacity(0.04), blurRadius: 6)],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.table_chart, color: color, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'MAC Address Table Detail',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color:      color,
-                  fontSize:   14,
+          // Header row
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: const [
+                SizedBox(width: 28),
+                SizedBox(
+                  width: 30,
+                  child: Text('Seq', style: TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.bold,
+                    color:    AppColors.textSecondary)),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Visual fill meter
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '$_macTableCurrent entries used',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color:      color,
-                            fontSize:   13,
-                          ),
-                        ),
-                        Text(
-                          '$_macTableMax maximum',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color:    AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-
-                    // Segmented progress bar showing zones
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: SizedBox(
-                        height: 14,
-                        child:  Stack(
-                          children: [
-                            // Background — full bar in light colour
-                            Container(
-                              width:      double.infinity,
-                              color:      AppColors.primarySurface,
-                            ),
-                            // Filled portion
-                            FractionallySizedBox(
-                              widthFactor: (pct / 100).clamp(0, 1),
-                              child: Container(color: color),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-
-                    // Zone labels
-                    Row(
-                      children: [
-                        _ZoneLabel('Safe\n0–70%',     AppColors.online),
-                        _ZoneLabel('Warn\n70–85%',    AppColors.degraded),
-                        _ZoneLabel('Critical\n85–95%',AppColors.severityHigh),
-                        _ZoneLabel('Emergency\n95%+', AppColors.offline),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(width: 16),
-
-              // Percentage circle
-              SizedBox(
-                width:  64,
-                height: 64,
-                child:  Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CircularProgressIndicator(
-                      value:           pct / 100,
-                      backgroundColor: color.withOpacity(0.15),
-                      valueColor: AlwaysStoppedAnimation<Color>(color),
-                      strokeWidth: 7,
-                    ),
-                    Text(
-                      '${pct.toStringAsFixed(0)}%',
-                      style: TextStyle(
-                        fontSize:   14,
-                        fontWeight: FontWeight.bold,
-                        color:      color,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          // Impact statement
-          if (pct >= 70) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding:    const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color:        Colors.white.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.people_outlined, size: 16, color: color),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      pct >= 95
-                          ? 'EMERGENCY: New customers cannot connect. '
-                              'Existing customers at risk of disconnection. '
-                              'Immediate action required.'
-                          : pct >= 85
-                              ? 'CRITICAL: New customer connections are '
-                                  'failing. Existing customers may experience '
-                                  'intermittent drops. Resolve within 1 hour.'
-                              : 'WARNING: MAC table filling rapidly. '
-                                  'Plan a maintenance window to clear entries '
-                                  'and implement per-port MAC limits.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color:    color,
-                        height:   1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                Expanded(child: Text('Result', style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.bold,
+                  color:    AppColors.textSecondary))),
+                Text('Latency', style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.bold,
+                  color:    AppColors.textSecondary)),
+              ],
             ),
-          ],
+          ),
+          const Divider(height: 1),
+          ...List.generate(_totalPings, (index) {
+            final seq = index + 1;
+            if (index < _results.length) {
+              return _PingRow(result: _results[index]);
+            }
+            if (seq == _currentPing + 1 && _isRunning) {
+              return _PingRowPending(sequence: seq);
+            }
+            return _PingRowEmpty(sequence: seq);
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildSummaryCard(DeviceModel device) {
-    final failedCount  = _failedChecks.length;
-    final passedCount  = _results.where((r) => r.passed).length;
+  // ── Summary card ──────────────────────────────────────────────────────────
 
+  Widget _buildSummaryCard(DeviceModel device) {
     return Container(
       padding:    const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _overallPassed
-            ? AppColors.onlineLight
-            : AppColors.offlineLight,
+        color: _passed ? AppColors.onlineLight : AppColors.offlineLight,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: _overallPassed
+          color: _passed
               ? AppColors.online.withOpacity(0.4)
               : AppColors.offline.withOpacity(0.4),
         ),
@@ -919,162 +396,664 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
           Row(
             children: [
               Icon(
-                _overallPassed ? Icons.check_circle : Icons.cancel,
-                color: _overallPassed ? AppColors.online : AppColors.offline,
+                _passed ? Icons.check_circle : Icons.cancel,
+                color: _passed ? AppColors.online : AppColors.offline,
                 size:  28,
               ),
               const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _overallPassed
-                          ? 'All Checks Passed'
-                          : '$failedCount Issue${failedCount > 1 ? "s" : ""} Found',
-                      style: TextStyle(
-                        fontSize:   18,
-                        fontWeight: FontWeight.bold,
-                        color: _overallPassed
-                            ? AppColors.online
-                            : AppColors.offline,
-                      ),
-                    ),
-                    Text(
-                      '$passedCount of ${_results.length} checks passed',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color:    AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+              Text(
+                _passed ? 'Diagnostic Passed' : 'Diagnostic Failed',
+                style: TextStyle(
+                  fontSize:   18,
+                  fontWeight: FontWeight.bold,
+                  color: _passed ? AppColors.online : AppColors.offline,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 16),
 
-          // List of failed checks with troubleshoot buttons
-          if (_failedChecks.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            const Text(
-              'Issues requiring attention:',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color:      AppColors.textPrimary,
-                fontSize:   14,
+          // Stats grid
+          Row(
+            children: [
+              _StatBox(
+                label: 'Avg Latency',
+                value: _avgLatency != null
+                    ? '${_avgLatency!.toStringAsFixed(1)} ms' : 'N/A',
+                good:  (_avgLatency ?? 999) <= 200,
               ),
+              const SizedBox(width: 10),
+              _StatBox(
+                label: 'Packet Loss',
+                value: '${_packetLoss!.toStringAsFixed(0)}%',
+                good:  (_packetLoss ?? 100) <= 5,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _StatBox(
+                label: 'Min Latency',
+                value: _minLatency != null
+                    ? '${_minLatency!.toStringAsFixed(1)} ms' : 'N/A',
+                good:  true,
+              ),
+              const SizedBox(width: 10),
+              _StatBox(
+                label: 'Max Latency',
+                value: _maxLatency != null
+                    ? '${_maxLatency!.toStringAsFixed(1)} ms' : 'N/A',
+                good:  (_maxLatency ?? 999) <= 300,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Recommendation
+          Container(
+            padding:    const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color:        Colors.white.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 8),
-
-            ..._failedChecks.map((result) => Container(
-                  margin:  const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color:        Colors.white.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: AppColors.offline.withOpacity(0.2)),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.lightbulb_outline, size: 16,
+                    color: _passed ? AppColors.online : AppColors.offline),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _recommendation(device),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _passed ? AppColors.online : AppColors.textPrimary,
+                      height:   1.4,
+                    ),
                   ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning_amber,
-                          color: AppColors.offline, size: 16),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          result.checkName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize:   13,
-                            color:      AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
+                ),
+              ],
+            ),
+          ),
 
-                      // Troubleshoot button for each failed check
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).pushNamed(
-                          AppConstants.troubleshootRoute,
-                          arguments: {
-                            'device':     device,
-                            'alertType':  result.alertType,
-                            'checkName':  result.checkName,
-                            'value':      result.value,
-                            'threshold':  result.threshold,
-                          },
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color:        AppColors.primary,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'Fix This',
-                            style: TextStyle(
-                              color:      Colors.white,
-                              fontSize:   12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
-
-            const SizedBox(height: 8),
-
-            // Single button to troubleshoot the most critical issue
+          // Troubleshoot button — only shown on failure
+          if (!_passed) ...[
+            const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () => Navigator.of(context).pushNamed(
                 AppConstants.troubleshootRoute,
-                arguments: {
-                  'device':    device,
-                  'alertType': _failedChecks.first.alertType,
-                  'checkName': _failedChecks.first.checkName,
-                  'value':     _failedChecks.first.value,
-                  'threshold': _failedChecks.first.threshold,
-                },
+                arguments: device,
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.offline,
-                minimumSize:     const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
+                minimumSize:     const Size(double.infinity, 48),
               ),
               icon:  const Icon(Icons.build_outlined),
-              label: const Text(
-                'Start Troubleshooting',
-                style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w600),
-              ),
+              label: const Text('Start Troubleshooting',
+                  style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w600)),
             ),
           ],
         ],
       ),
     );
   }
+
+  // ── Live ping chart ─────────────────────────────────────────────────────
+
+  Widget _buildLiveChart() {
+    final successResults = _results.where((r) => r.success).toList();
+    final spots = successResults.map((r) =>
+        FlSpot(r.sequence.toDouble(), r.latencyMs ?? 0)).toList();
+
+    // Compute running stats displayed inside the chart card
+    final latencies = successResults.map((r) => r.latencyMs!).toList();
+    final runMin = latencies.isNotEmpty
+        ? latencies.reduce((a, b) => a < b ? a : b) : 0.0;
+    final runMax = latencies.isNotEmpty
+        ? latencies.reduce((a, b) => a > b ? a : b) : 0.0;
+    final runAvg = latencies.isNotEmpty
+        ? latencies.reduce((a, b) => a + b) / latencies.length : 0.0;
+    final runLoss = ((_results.length - successResults.length) /
+        _results.length * 100);
+
+    final maxY = (runMax + 40).clamp(50.0, 600.0);
+
+    return Container(
+      padding:    const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color:        AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(
+          color: Colors.black.withOpacity(0.05), blurRadius: 6)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Chart header with live stats
+          Row(
+            children: [
+              const Icon(Icons.show_chart, size: 16, color: AppColors.primary),
+              const SizedBox(width: 6),
+              const Text('Live Latency', style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              const Spacer(),
+              if (_isRunning)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(width: 8, height: 8,
+                        child: CircularProgressIndicator(strokeWidth: 1.5)),
+                      SizedBox(width: 6),
+                      Text('LIVE', style: TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.bold,
+                        color: AppColors.primary)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Mini stat row
+          Row(
+            children: [
+              _MiniStat(label: 'Avg', value: '${runAvg.toStringAsFixed(1)} ms'),
+              _MiniStat(label: 'Min', value: '${runMin.toStringAsFixed(1)} ms'),
+              _MiniStat(label: 'Max', value: '${runMax.toStringAsFixed(1)} ms'),
+              _MiniStat(label: 'Loss', value: '${runLoss.toStringAsFixed(0)}%'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Chart
+          SizedBox(
+            height: 160,
+            child: spots.isEmpty
+                ? const Center(child: Text('Waiting for successful pings...',
+                    style: TextStyle(fontSize: 12, color: AppColors.textHint)))
+                : LineChart(
+                    LineChartData(
+                      gridData: FlGridData(
+                        show: true, drawVerticalLine: false,
+                        getDrawingHorizontalLine: (_) =>
+                            const FlLine(color: AppColors.divider, strokeWidth: 0.5),
+                      ),
+                      titlesData: FlTitlesData(
+                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles:   const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: AxisTitles(sideTitles: SideTitles(
+                          showTitles: true, reservedSize: 36,
+                          getTitlesWidget: (v, _) => Text(
+                            '${v.toInt()}',
+                            style: const TextStyle(
+                              fontSize: 10, color: AppColors.textHint),
+                          ),
+                        )),
+                        bottomTitles: AxisTitles(sideTitles: SideTitles(
+                          showTitles: true, reservedSize: 20,
+                          getTitlesWidget: (v, _) => Text(
+                            '#${v.toInt()}',
+                            style: const TextStyle(
+                              fontSize: 10, color: AppColors.textHint),
+                          ),
+                        )),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      minX: 1, maxX: _totalPings.toDouble(),
+                      minY: 0, maxY: maxY,
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots:    spots,
+                          isCurved: true,
+                          curveSmoothness: 0.25,
+                          color:    AppColors.primary,
+                          barWidth: 2.5,
+                          isStrokeCapRound: true,
+                          dotData: FlDotData(
+                            show: true,
+                            getDotPainter: (spot, _, __, ___) =>
+                                FlDotCirclePainter(
+                                  radius:      3,
+                                  color:       AppColors.primary,
+                                  strokeWidth: 1.5,
+                                  strokeColor: Colors.white,
+                                ),
+                          ),
+                          belowBarData: BarAreaData(
+                            show:  true,
+                            color: AppColors.primary.withOpacity(0.08),
+                          ),
+                        ),
+                      ],
+                      lineTouchData: LineTouchData(
+                        enabled: true,
+                        touchTooltipData: LineTouchTooltipData(
+                          getTooltipColor: (_) => AppColors.primary.withOpacity(0.9),
+                          getTooltipItems: (spots) => spots.map((s) =>
+                              LineTooltipItem(
+                                '${s.y.toStringAsFixed(1)} ms',
+                                const TextStyle(
+                                    color: Colors.white, fontSize: 12,
+                                    fontWeight: FontWeight.bold),
+                              )).toList(),
+                        ),
+                      ),
+                    ),
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeInOut,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Traceroute section ──────────────────────────────────────────────────
+
+  Widget _buildTracerouteSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.route, size: 18, color: AppColors.primary),
+            const SizedBox(width: 6),
+            const Text('Traceroute', style: TextStyle(
+              fontSize: 16, fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary)),
+            const Spacer(),
+            if (_isTracerouting)
+              const SizedBox(width: 16, height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2)),
+            if (_tracerouteComplete)
+              Text('${_hops.length} hops', style: const TextStyle(
+                fontSize: 13, color: AppColors.textSecondary)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color:        AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [BoxShadow(
+              color: Colors.black.withOpacity(0.04), blurRadius: 6)],
+          ),
+          child: Column(
+            children: [
+              ..._hops.asMap().entries.map((entry) {
+                final i   = entry.key;
+                final hop = entry.value;
+                final isLast = i == _hops.length - 1 && _tracerouteComplete;
+                return _TracerouteRow(hop: hop, isLast: isLast);
+              }),
+              if (_isTracerouting)
+                _TracerouteRowPending(hop: _hops.length + 1),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _recommendation(DeviceModel device) {
+    if (_passed) {
+      return '${device.name} is responding normally. '
+          'Connectivity and latency are within acceptable thresholds.';
+    }
+    if ((_packetLoss ?? 0) == 100) {
+      return '${device.name} is completely unreachable. '
+          'Check physical connections, power status, and upstream link.';
+    }
+    if ((_packetLoss ?? 0) > 5) {
+      return 'Significant packet loss detected on ${device.name}. '
+          'This may indicate congestion, a faulty cable, or interference.';
+    }
+    return 'High latency detected on ${device.name}. '
+        'Check bandwidth utilisation and upstream link quality.';
+  }
 }
 
-/// Zone label widget for the MAC table bar.
-class _ZoneLabel extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// Data class
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PingResult {
+  final int     sequence;
+  final bool    success;
+  final double? latencyMs;
+  final String  message;
+  const _PingResult({
+    required this.sequence,
+    required this.success,
+    required this.latencyMs,
+    required this.message,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Row widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PingRow extends StatelessWidget {
+  final _PingResult result;
+  const _PingRow({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(
+            color: AppColors.divider, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            result.success ? Icons.check_circle : Icons.cancel,
+            color: result.success ? AppColors.online : AppColors.offline,
+            size:  18,
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 30,
+            child: Text('#${result.sequence}', style: const TextStyle(
+              fontSize: 13, color: AppColors.textSecondary)),
+          ),
+          Expanded(
+            child: Text(result.message, style: TextStyle(
+              fontSize:   12,
+              color:      result.success
+                  ? AppColors.textPrimary : AppColors.offline,
+              fontFamily: 'monospace',
+            )),
+          ),
+          Text(
+            result.latencyMs != null
+                ? '${result.latencyMs!.toStringAsFixed(1)} ms' : '---',
+            style: TextStyle(
+              fontSize:   12,
+              fontWeight: FontWeight.w600,
+              color: result.success ? AppColors.online : AppColors.textHint,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PingRowPending extends StatelessWidget {
+  final int sequence;
+  const _PingRowPending({required this.sequence});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(
+            color: AppColors.divider, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 18, height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 30,
+            child: Text('#$sequence', style: const TextStyle(
+              fontSize: 13, color: AppColors.textSecondary)),
+          ),
+          const Expanded(child: Text('Sending...', style: TextStyle(
+            fontSize: 12, color: AppColors.textHint,
+            fontStyle: FontStyle.italic))),
+        ],
+      ),
+    );
+  }
+}
+
+class _PingRowEmpty extends StatelessWidget {
+  final int sequence;
+  const _PingRowEmpty({required this.sequence});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(
+            color: AppColors.divider, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width:      18, height: 18,
+            decoration: BoxDecoration(
+              shape:  BoxShape.circle,
+              border: Border.all(color: AppColors.divider),
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 30,
+            child: Text('#$sequence', style: const TextStyle(
+              fontSize: 13, color: AppColors.textHint)),
+          ),
+          const Expanded(child: Text('Waiting...', style: TextStyle(
+            fontSize: 12, color: AppColors.textHint))),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatBox extends StatelessWidget {
   final String label;
-  final Color  color;
-  const _ZoneLabel(this.label, this.color);
+  final String value;
+  final bool   good;
+  const _StatBox({required this.label, required this.value, required this.good});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding:    const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color:        Colors.white.withOpacity(0.6),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(
+              fontSize: 11, color: AppColors.textSecondary)),
+            const SizedBox(height: 4),
+            Text(value, style: TextStyle(
+              fontSize:   16,
+              fontWeight: FontWeight.bold,
+              color: good ? AppColors.online : AppColors.offline,
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mini stat chip for the live chart header
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MiniStat extends StatelessWidget {
+  final String label;
+  final String value;
+  const _MiniStat({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Column(
         children: [
-          Container(height: 3, color: color),
-          const SizedBox(height: 3),
-          Text(
-            label,
-            style: TextStyle(fontSize: 9, color: color),
-            textAlign: TextAlign.center,
+          Text(label, style: const TextStyle(
+            fontSize: 10, color: AppColors.textHint, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(
+            fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Traceroute data & widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TracerouteHop {
+  final int     hop;
+  final String  hostname;
+  final String  ip;
+  final double? latencyMs;
+  const _TracerouteHop({
+    required this.hop,
+    required this.hostname,
+    required this.ip,
+    required this.latencyMs,
+  });
+}
+
+class _TracerouteRow extends StatelessWidget {
+  final _TracerouteHop hop;
+  final bool           isLast;
+  const _TracerouteRow({required this.hop, this.isLast = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final timedOut = hop.latencyMs == null;
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Timeline column
+          SizedBox(
+            width: 48,
+            child: Column(
+              children: [
+                Container(
+                  width: 28, height: 28,
+                  decoration: BoxDecoration(
+                    color: timedOut
+                        ? AppColors.offlineLight
+                        : isLast
+                            ? AppColors.onlineLight
+                            : AppColors.primarySurface,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: timedOut
+                          ? AppColors.offline
+                          : isLast
+                              ? AppColors.online
+                              : AppColors.primary,
+                      width: 2,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text('${hop.hop}', style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.bold,
+                      color: timedOut ? AppColors.offline
+                          : isLast ? AppColors.online : AppColors.primary,
+                    )),
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      color: AppColors.divider,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // Content
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 4, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(hop.hostname, style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600,
+                    color: timedOut ? AppColors.offline : AppColors.textPrimary,
+                  )),
+                  const SizedBox(height: 2),
+                  Text(hop.ip, style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary,
+                    fontFamily: 'monospace',
+                  )),
+                ],
+              ),
+            ),
+          ),
+          // Latency
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 6, 14, 0),
+            child: Text(
+              timedOut ? '* * *' : '${hop.latencyMs!.toStringAsFixed(1)} ms',
+              style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w600,
+                fontFamily: 'monospace',
+                color: timedOut ? AppColors.offline : AppColors.online,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TracerouteRowPending extends StatelessWidget {
+  final int hop;
+  const _TracerouteRowPending({required this.hop});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 48,
+            child: Center(
+              child: Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(
+                  color: AppColors.primarySurface,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.divider, width: 2),
+                ),
+                child: const Center(
+                  child: SizedBox(width: 12, height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 1.5)),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Text('Hop $hop — probing...', style: const TextStyle(
+              fontSize: 12, fontStyle: FontStyle.italic,
+              color: AppColors.textHint)),
           ),
         ],
       ),

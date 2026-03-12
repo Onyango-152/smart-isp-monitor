@@ -17,15 +17,15 @@ dependencies:
   # State management
   provider: ^6.1.2
 
+  # Charts for metrics and reports
+  fl_chart: ^0.67.0
+
   # Local database for offline mode
   sqflite: ^2.3.2
   path: ^1.9.0
 
   # Push notifications
   flutter_local_notifications: ^17.0.0
-
-  # Charts for metrics and reports
-  fl_chart: ^0.67.0
 
   # Network connectivity detection
   connectivity_plus: ^6.0.3

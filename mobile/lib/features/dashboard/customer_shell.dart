@@ -51,9 +51,9 @@ class _PlaceholderScreen extends StatelessWidget {
           children: [
             Icon(icon, size: 64, color: AppColors.primaryLight),
             const SizedBox(height: 16),
-            Text(label, style: const TextStyle(
+            Text(label, style: TextStyle(
               fontSize: 20, fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
+              color: AppColors.textSecondaryOf(context),
             )),
           ],
         ),

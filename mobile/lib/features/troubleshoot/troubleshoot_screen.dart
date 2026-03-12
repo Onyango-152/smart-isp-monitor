@@ -6,6 +6,12 @@ import '../../data/models/device_model.dart';
 import '../../data/troubleshoot_data.dart';
 import 'troubleshoot_provider.dart';
 
+/// TroubleshootScreen — step-by-step guided troubleshooting wizard.
+///
+/// Accepts two argument shapes via route arguments:
+///   1. A DeviceModel directly (from device detail "Troubleshoot" button)
+///   2. A Map with keys: 'device', 'alertType', 'value', 'threshold'
+///      (from the diagnostic screen "Start Troubleshooting" button)
 class TroubleshootScreen extends StatelessWidget {
   const TroubleshootScreen({super.key});
 
@@ -18,29 +24,33 @@ class TroubleshootScreen extends StatelessWidget {
     double?     value;
     double?     threshold;
 
-    // Arguments can come from two sources:
-    // 1. A Map from the diagnostic screen with full context
-    // 2. A DeviceModel directly from the device detail screen
     if (args is Map) {
       device    = args['device']    as DeviceModel;
-      alertType = args['alertType'] as String? ?? 'generic';
-      // checkName removed
+      alertType = args['alertType'] as String?  ?? 'generic';
       value     = args['value']     as double?;
       threshold = args['threshold'] as double?;
     } else if (args is DeviceModel) {
       device    = args;
       alertType = 'generic';
-      // checkName removed
       value     = null;
       threshold = null;
     } else {
       return Scaffold(
         appBar: AppBar(title: const Text('Troubleshoot')),
-        body: const Center(child: Text('No device data provided.')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'No device data was provided.\n'
+              'Please go back and tap Troubleshoot from a device.',
+              textAlign: TextAlign.center,
+              style:     TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        ),
       );
     }
 
-    // Get the correct troubleshooting scenario for this alert type
     final scenario = TroubleshootData.getScenario(
       alertType:  alertType,
       deviceType: device.deviceType,
@@ -48,14 +58,13 @@ class TroubleshootScreen extends StatelessWidget {
 
     return ChangeNotifierProvider(
       create: (_) => TroubleshootProvider(
-        device:         device,
-        scenario:       scenario,
-        measuredValue:  value,
-        threshold:      threshold,
+        device:        device,
+        scenario:      scenario,
+        measuredValue: value,
+        threshold:     threshold,
       ),
       child: _TroubleshootContent(
         device:    device,
-        alertType: alertType,
         value:     value,
         threshold: threshold,
       ),
@@ -65,13 +74,11 @@ class TroubleshootScreen extends StatelessWidget {
 
 class _TroubleshootContent extends StatelessWidget {
   final DeviceModel device;
-  final String      alertType;
   final double?     value;
   final double?     threshold;
 
   const _TroubleshootContent({
     required this.device,
-    required this.alertType,
     this.value,
     this.threshold,
   });
@@ -80,21 +87,18 @@ class _TroubleshootContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<TroubleshootProvider>(
       builder: (context, provider, _) {
-
         if (provider.showingResult) {
           return _buildResultScreen(context, provider);
         }
-
         return Scaffold(
-          backgroundColor: AppColors.background,
           appBar: AppBar(
             title: const Text('Troubleshoot'),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(6),
               child: LinearProgressIndicator(
-                value:            provider.progressPct,
-                backgroundColor:  Colors.white24,
-                valueColor:       const AlwaysStoppedAnimation<Color>(
+                value:           provider.progressPct,
+                backgroundColor: Colors.white24,
+                valueColor:      const AlwaysStoppedAnimation<Color>(
                     Colors.white),
                 minHeight: 4,
               ),
@@ -102,21 +106,11 @@ class _TroubleshootContent extends StatelessWidget {
           ),
           body: Column(
             children: [
-
-              // ── Header — Scenario Title and Device ───────────────────
-              _buildHeader(context, provider),
-
-              // ── Step Navigator — small clickable step dots ───────────
-              _buildStepNav(context, provider),
-
+              _buildHeader(provider),
+              _buildChecklist(provider),
+              _buildStepNav(provider),
               const Divider(height: 1),
-
-              // ── Current Step Content ─────────────────────────────────
-              Expanded(
-                child: _buildStepContent(context, provider),
-              ),
-
-              // ── Bottom Action Bar ────────────────────────────────────
+              Expanded(child: _buildStepContent(provider)),
               _buildBottomBar(context, provider),
             ],
           ),
@@ -125,10 +119,9 @@ class _TroubleshootContent extends StatelessWidget {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Header
-  // ─────────────────────────────────────────────────────────────────────────
-  Widget _buildHeader(BuildContext context, TroubleshootProvider provider) {
+  // ── Scenario header ───────────────────────────────────────────────────────
+
+  Widget _buildHeader(TroubleshootProvider provider) {
     return Container(
       width:   double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
@@ -136,34 +129,22 @@ class _TroubleshootContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Scenario title
-          Text(
-            provider.scenario.title,
-            style: const TextStyle(
-              fontSize:   18,
-              fontWeight: FontWeight.bold,
-              color:      AppColors.textPrimary,
-            ),
-          ),
+          Text(provider.scenario.title, style: const TextStyle(
+            fontSize:   18,
+            fontWeight: FontWeight.bold,
+            color:      AppColors.textPrimary,
+          )),
           const SizedBox(height: 4),
-
-          // Device context
           Row(
             children: [
               Icon(AppUtils.deviceTypeIcon(device.deviceType),
                   size: 14, color: AppColors.textHint),
               const SizedBox(width: 5),
-              Text(
-                '${device.name}  ·  ${device.ipAddress}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color:    AppColors.textSecondary,
-                ),
-              ),
+              Text('${device.name}  ·  ${device.ipAddress}',
+                  style: const TextStyle(
+                    fontSize: 13, color: AppColors.textSecondary)),
             ],
           ),
-
-          // Measured value context if available
           if (value != null && threshold != null) ...[
             const SizedBox(height: 8),
             Container(
@@ -192,16 +173,34 @@ class _TroubleshootContent extends StatelessWidget {
               ),
             ),
           ],
-
           const SizedBox(height: 8),
-
-          // Scenario description
-          Text(
-            provider.scenario.description,
-            style: const TextStyle(
-              fontSize: 13,
-              color:    AppColors.textSecondary,
-              height:   1.4,
+          Text(provider.scenario.description,
+              style: const TextStyle(
+                fontSize: 13,
+                color:    AppColors.textSecondary,
+                height:   1.4,
+              )),
+          const SizedBox(height: 10),
+          // Progress counter
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.checklist_rounded, size: 14, color: AppColors.primary),
+                const SizedBox(width: 6),
+                Text(
+                  '${provider.completedSteps.length} of ${provider.totalSteps} steps completed',
+                  style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -209,10 +208,69 @@ class _TroubleshootContent extends StatelessWidget {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Step Navigator — row of numbered dots
-  // ─────────────────────────────────────────────────────────────────────────
-  Widget _buildStepNav(BuildContext context, TroubleshootProvider provider) {
+  // ── Checklist overview ──────────────────────────────────────────────────
+
+  Widget _buildChecklist(TroubleshootProvider provider) {
+    return Container(
+      color:   AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Column(
+        children: List.generate(provider.totalSteps, (index) {
+          final step      = provider.scenario.steps[index];
+          final isDone    = provider.isStepCompleted(index);
+          final isCurrent = index == provider.currentStep;
+
+          return InkWell(
+            onTap: () => provider.goToStep(index),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 24, height: 24,
+                    child: Checkbox(
+                      value:       isDone,
+                      onChanged:   (_) => provider.toggleStep(index),
+                      activeColor: AppColors.online,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      step.title,
+                      style: TextStyle(
+                        fontSize:   13,
+                        color: isDone
+                            ? AppColors.textHint
+                            : isCurrent
+                                ? AppColors.primary
+                                : AppColors.textPrimary,
+                        fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
+                        decoration: isDone ? TextDecoration.lineThrough : null,
+                        decorationColor: AppColors.textHint,
+                      ),
+                    ),
+                  ),
+                  if (step.isCritical)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 4),
+                      child: Icon(Icons.warning_amber, size: 14,
+                          color: AppColors.offline),
+                    ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  // ── Step navigator dots ───────────────────────────────────────────────────
+
+  Widget _buildStepNav(TroubleshootProvider provider) {
     return Container(
       color:   AppColors.surface,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -226,11 +284,10 @@ class _TroubleshootContent extends StatelessWidget {
               onTap: () => provider.goToStep(index),
               child: Row(
                 children: [
-                  // Step dot
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 250),
-                    width:    isCurrent ? 32 : 24,
-                    height:   24,
+                    width:  isCurrent ? 32 : 24,
+                    height: 24,
                     decoration: BoxDecoration(
                       color: isCompleted
                           ? AppColors.online
@@ -243,20 +300,16 @@ class _TroubleshootContent extends StatelessWidget {
                       child: isCompleted
                           ? const Icon(Icons.check,
                               size: 14, color: Colors.white)
-                          : Text(
-                              '${index + 1}',
+                          : Text('${index + 1}',
                               style: TextStyle(
                                 fontSize:   11,
                                 fontWeight: FontWeight.bold,
                                 color: isCurrent
                                     ? Colors.white
                                     : AppColors.primary,
-                              ),
-                            ),
+                              )),
                     ),
                   ),
-
-                  // Connector line between dots
                   if (index < provider.totalSteps - 1)
                     Expanded(
                       child: Container(
@@ -275,10 +328,9 @@ class _TroubleshootContent extends StatelessWidget {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Step Content
-  // ─────────────────────────────────────────────────────────────────────────
-  Widget _buildStepContent(BuildContext context, TroubleshootProvider provider) {
+  // ── Step content ──────────────────────────────────────────────────────────
+
+  Widget _buildStepContent(TroubleshootProvider provider) {
     final step      = provider.currentStepData;
     final stepIndex = provider.currentStep;
     final isDone    = provider.isStepCompleted(stepIndex);
@@ -289,7 +341,7 @@ class _TroubleshootContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          // Step number and title
+          // Step badge
           Row(
             children: [
               Container(
@@ -323,14 +375,11 @@ class _TroubleshootContent extends StatelessWidget {
                       Icon(Icons.warning_amber,
                           size: 12, color: AppColors.offline),
                       SizedBox(width: 4),
-                      Text(
-                        'Critical Step',
-                        style: TextStyle(
-                          fontSize:   11,
-                          fontWeight: FontWeight.bold,
-                          color:      AppColors.offline,
-                        ),
-                      ),
+                      Text('Critical Step', style: TextStyle(
+                        fontSize:   11,
+                        fontWeight: FontWeight.bold,
+                        color:      AppColors.offline,
+                      )),
                     ],
                   ),
                 ),
@@ -339,58 +388,24 @@ class _TroubleshootContent extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          Text(
-            step.title,
-            style: const TextStyle(
-              fontSize:   20,
-              fontWeight: FontWeight.bold,
-              color:      AppColors.textPrimary,
-            ),
-          ),
+          Text(step.title, style: const TextStyle(
+            fontSize:   20,
+            fontWeight: FontWeight.bold,
+            color:      AppColors.textPrimary,
+          )),
           const SizedBox(height: 14),
 
-          // Instruction box
-          Container(
-            width:   double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color:        AppColors.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.divider),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.assignment_outlined,
-                        size: 16, color: AppColors.primary),
-                    SizedBox(width: 6),
-                    Text(
-                      'What to do',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize:   13,
-                        color:      AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  step.instruction,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color:    AppColors.textPrimary,
-                    height:   1.6,
-                  ),
-                ),
-              ],
-            ),
+          // Instruction
+          _InfoBox(
+            icon:  Icons.assignment_outlined,
+            label: 'What to do',
+            text:  step.instruction,
+            color: AppColors.primary,
+            bg:    AppColors.surface,
           ),
           const SizedBox(height: 10),
 
-          // CLI Command box (if there is a command)
+          // Command
           if (step.command != null) ...[
             Container(
               width:   double.infinity,
@@ -404,78 +419,37 @@ class _TroubleshootContent extends StatelessWidget {
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.terminal,
-                          size: 14, color: Colors.green),
+                      Icon(Icons.terminal, size: 14, color: Colors.green),
                       SizedBox(width: 6),
-                      Text(
-                        'Command to run',
-                        style: TextStyle(
-                          color:      Colors.green,
-                          fontSize:   12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      Text('Command to run', style: TextStyle(
+                        color: Colors.green, fontSize: 12,
+                        fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    step.command!,
-                    style: const TextStyle(
-                      color:      Color(0xFF00FF41),
-                      fontSize:   13,
-                      fontFamily: 'monospace',
-                      height:     1.6,
-                    ),
-                  ),
+                  Text(step.command!, style: const TextStyle(
+                    color:      Color(0xFF00FF41),
+                    fontSize:   13,
+                    fontFamily: 'monospace',
+                    height:     1.6,
+                  )),
                 ],
               ),
             ),
             const SizedBox(height: 10),
           ],
 
-          // Expected result box
-          Container(
-            width:   double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color:        AppColors.onlineLight,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: AppColors.online.withOpacity(0.3)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.check_circle_outline,
-                        size: 16, color: AppColors.online),
-                    SizedBox(width: 6),
-                    Text(
-                      'Expected result',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize:   13,
-                        color:      AppColors.online,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  step.expectedResult,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color:    AppColors.textPrimary,
-                    height:   1.5,
-                  ),
-                ),
-              ],
-            ),
+          // Expected result
+          _InfoBox(
+            icon:  Icons.check_circle_outline,
+            label: 'Expected result',
+            text:  step.expectedResult,
+            color: AppColors.online,
+            bg:    AppColors.onlineLight,
           ),
           const SizedBox(height: 10),
 
-          // Warning note if there is one
+          // Warning note
           if (step.warningNote != null) ...[
             Container(
               width:   double.infinity,
@@ -492,16 +466,12 @@ class _TroubleshootContent extends StatelessWidget {
                   const Icon(Icons.warning_amber_outlined,
                       size: 18, color: AppColors.degraded),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      step.warningNote!,
+                  Expanded(child: Text(step.warningNote!,
                       style: const TextStyle(
                         fontSize: 13,
                         color:    AppColors.textPrimary,
                         height:   1.5,
-                      ),
-                    ),
-                  ),
+                      ))),
                 ],
               ),
             ),
@@ -519,69 +489,56 @@ class _TroubleshootContent extends StatelessWidget {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.check_circle,
-                      color: AppColors.online, size: 20),
+                  Icon(Icons.check_circle, color: AppColors.online, size: 20),
                   SizedBox(width: 10),
-                  Text(
-                    'This step has been marked as done.',
-                    style: TextStyle(
-                      color:      AppColors.online,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  Text('This step has been marked as done.',
+                      style: TextStyle(
+                        color:      AppColors.online,
+                        fontWeight: FontWeight.w600,
+                      )),
                 ],
               ),
             ),
 
           const SizedBox(height: 80),
-          // Extra space so content is not hidden behind the bottom bar
         ],
       ),
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Bottom Action Bar
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Bottom action bar ─────────────────────────────────────────────────────
+
   Widget _buildBottomBar(BuildContext context, TroubleshootProvider provider) {
-    final isDone    = provider.isStepCompleted(provider.currentStep);
-    final isLast    = provider.isLastStep;
+    final isDone = provider.isStepCompleted(provider.currentStep);
+    final isLast = provider.isLastStep;
 
     return Container(
       padding: EdgeInsets.fromLTRB(
           16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
       decoration: const BoxDecoration(
         color: AppColors.surface,
-        boxShadow: [
-          BoxShadow(
-            color:      Color(0x14000000),
-            blurRadius: 8,
-            offset:     Offset(0, -2),
-          ),
-        ],
+        boxShadow: [BoxShadow(
+          color:      Color(0x14000000),
+          blurRadius: 8,
+          offset:     Offset(0, -2),
+        )],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-
-          // Main action button
           ElevatedButton.icon(
             onPressed: () {
               if (isDone && isLast) {
-                // All steps done — show resolution screen
                 provider.markResolved();
               } else if (isDone) {
-                // Current step done — go to next
                 provider.goToStep(provider.currentStep + 1);
               } else {
-                // Mark current step as complete
                 provider.completeCurrentStep();
               }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: isDone && isLast
-                  ? AppColors.online
-                  : AppColors.primary,
+                  ? AppColors.online : AppColors.primary,
               minimumSize: const Size(double.infinity, 52),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
@@ -603,38 +560,32 @@ class _TroubleshootContent extends StatelessWidget {
                   fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ),
-
           const SizedBox(height: 8),
-
-          // Secondary actions row
           Row(
             children: [
-              // Previous step
-              if (provider.currentStep > 0)
+              if (provider.currentStep > 0) ...[
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () =>
                         provider.goToStep(provider.currentStep - 1),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(0, 42),
-                      side: const BorderSide(color: AppColors.divider),
+                      side:  const BorderSide(color: AppColors.divider),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
                     ),
                     child: const Text('← Previous'),
                   ),
                 ),
-
-              if (provider.currentStep > 0) const SizedBox(width: 8),
-
-              // Escalate — skip to resolution without completing all steps
+                const SizedBox(width: 8),
+              ],
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => _showEscalateDialog(context, provider),
                   style: OutlinedButton.styleFrom(
-                    minimumSize:    const Size(0, 42),
+                    minimumSize:     const Size(0, 42),
                     foregroundColor: AppColors.textSecondary,
-                    side: const BorderSide(color: AppColors.divider),
+                    side:  const BorderSide(color: AppColors.divider),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
@@ -650,19 +601,18 @@ class _TroubleshootContent extends StatelessWidget {
 
   void _showEscalateDialog(
       BuildContext context, TroubleshootProvider provider) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Escalate Issue?'),
+        title:   const Text('Escalate Issue?'),
         content: const Text(
-          'This will mark the issue for escalation to a senior technician '
-          'or network engineer. The troubleshooting session will be saved '
-          'with the steps completed so far.',
+          'This will mark the issue for escalation to a senior engineer. '
+          'The steps completed so far will be recorded.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child:     const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -678,16 +628,14 @@ class _TroubleshootContent extends StatelessWidget {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Resolution Screen — shown after all steps are complete
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Resolution screen ─────────────────────────────────────────────────────
+
   Widget _buildResultScreen(
       BuildContext context, TroubleshootProvider provider) {
-    final resolved      = provider.isResolved;
+    final resolved       = provider.isResolved;
     final completedCount = provider.completedSteps.length;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Resolution'),
         automaticallyImplyLeading: false,
@@ -697,7 +645,6 @@ class _TroubleshootContent extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             // Result banner
             Container(
               width:   double.infinity,
@@ -716,25 +663,18 @@ class _TroubleshootContent extends StatelessWidget {
               child: Column(
                 children: [
                   Icon(
-                    resolved
-                        ? Icons.verified
-                        : Icons.escalator_warning,
+                    resolved ? Icons.verified : Icons.escalator_warning,
                     size:  56,
-                    color: resolved
-                        ? AppColors.online
-                        : AppColors.degraded,
+                    color: resolved ? AppColors.online : AppColors.degraded,
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    resolved
-                        ? 'Issue Resolved'
-                        : 'Issue Escalated',
+                    resolved ? 'Issue Resolved' : 'Issue Escalated',
                     style: TextStyle(
                       fontSize:   24,
                       fontWeight: FontWeight.bold,
                       color: resolved
-                          ? AppColors.online
-                          : AppColors.degraded,
+                          ? AppColors.online : AppColors.degraded,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -742,8 +682,8 @@ class _TroubleshootContent extends StatelessWidget {
                     resolved
                         ? provider.scenario.resolution
                         : 'This issue has been flagged for escalation '
-                            'to a senior engineer. The steps completed '
-                            'have been recorded.',
+                            'to a senior engineer. Steps completed have '
+                            'been recorded.',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 14,
@@ -754,7 +694,6 @@ class _TroubleshootContent extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
 
             // Session summary
@@ -767,100 +706,73 @@ class _TroubleshootContent extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Session Summary',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize:   15,
-                      color:      AppColors.textPrimary,
-                    ),
-                  ),
+                  const Text('Session Summary', style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize:   15,
+                    color:      AppColors.textPrimary,
+                  )),
                   const SizedBox(height: 12),
-
-                  _SummaryRow(
-                    label: 'Device',
-                    value: provider.device.name,
-                  ),
-                  _SummaryRow(
-                    label: 'Issue',
-                    value: provider.scenario.title,
-                  ),
+                  _SummaryRow(label: 'Device', value: provider.device.name),
+                  _SummaryRow(label: 'Issue',  value: provider.scenario.title),
                   _SummaryRow(
                     label: 'Steps Completed',
                     value: '$completedCount of ${provider.totalSteps}',
                   ),
                   _SummaryRow(
-                    label: 'Outcome',
-                    value: resolved ? 'Resolved' : 'Escalated',
+                    label:      'Outcome',
+                    value:      resolved ? 'Resolved' : 'Escalated',
                     valueColor: resolved
-                        ? AppColors.online
-                        : AppColors.degraded,
+                        ? AppColors.online : AppColors.degraded,
                   ),
-
-                  // Show completed step titles
                   if (provider.completedSteps.isNotEmpty) ...[
                     const Divider(height: 20),
-                    const Text(
-                      'Steps performed:',
-                      style: TextStyle(
-                        fontSize:   13,
-                        fontWeight: FontWeight.w600,
-                        color:      AppColors.textSecondary,
-                      ),
-                    ),
+                    const Text('Steps performed:', style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600,
+                      color:    AppColors.textSecondary)),
                     const SizedBox(height: 6),
                     ...provider.completedSteps.map((idx) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(Icons.check_circle,
-                                  size:  14,
-                                  color: AppColors.online),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  provider.scenario.steps[idx].title,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color:    AppColors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )),
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.check_circle,
+                              size: 14, color: AppColors.online),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(
+                            provider.scenario.steps[idx].title,
+                            style: const TextStyle(
+                              fontSize: 13, color: AppColors.textPrimary),
+                          )),
+                        ],
+                      ),
+                    )),
                   ],
                 ],
               ),
             ),
-
             const SizedBox(height: 20),
 
-            // Action buttons
+            // Back button
             ElevatedButton.icon(
               onPressed: () {
-                // Pop back to wherever we came from
                 int count = 0;
                 Navigator.of(context).popUntil((_) => count++ >= 2);
               },
               style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 52),
-              ),
+                  minimumSize: const Size(double.infinity, 52)),
               icon:  const Icon(Icons.home_outlined),
               label: const Text('Back to Device',
                   style: TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w600)),
             ),
-
             const SizedBox(height: 10),
 
             OutlinedButton.icon(
               onPressed: provider.restart,
               style: OutlinedButton.styleFrom(
-                minimumSize:    const Size(double.infinity, 48),
+                minimumSize:     const Size(double.infinity, 48),
                 foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
+                side:  const BorderSide(color: AppColors.primary),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
               ),
@@ -869,7 +781,6 @@ class _TroubleshootContent extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w600)),
             ),
-
             const SizedBox(height: 32),
           ],
         ),
@@ -878,12 +789,56 @@ class _TroubleshootContent extends StatelessWidget {
   }
 }
 
-/// Simple label-value row for the resolution summary.
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _InfoBox extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  final String   text;
+  final Color    color;
+  final Color    bg;
+  const _InfoBox({
+    required this.icon,
+    required this.label,
+    required this.text,
+    required this.color,
+    required this.bg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width:   double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color:        bg,
+        borderRadius: BorderRadius.circular(12),
+        border:       Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(
+              fontWeight: FontWeight.bold, fontSize: 13, color: color)),
+          ]),
+          const SizedBox(height: 8),
+          Text(text, style: const TextStyle(
+            fontSize: 13, color: AppColors.textPrimary, height: 1.6)),
+        ],
+      ),
+    );
+  }
+}
+
 class _SummaryRow extends StatelessWidget {
   final String label;
   final String value;
   final Color? valueColor;
-
   const _SummaryRow({
     required this.label,
     required this.value,
@@ -898,24 +853,14 @@ class _SummaryRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 140,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                color:    AppColors.textSecondary,
-              ),
-            ),
+            child: Text(label, style: const TextStyle(
+              fontSize: 13, color: AppColors.textSecondary)),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize:   13,
-                fontWeight: FontWeight.w600,
-                color:      valueColor ?? AppColors.textPrimary,
-              ),
-            ),
-          ),
+          Expanded(child: Text(value, style: TextStyle(
+            fontSize:   13,
+            fontWeight: FontWeight.w600,
+            color:      valueColor ?? AppColors.textPrimary,
+          ))),
         ],
       ),
     );

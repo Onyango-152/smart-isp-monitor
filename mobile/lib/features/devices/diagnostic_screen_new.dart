@@ -76,7 +76,7 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               const SizedBox(height: 8),
               Text(
                 'Device: ${device?.name}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
               ),
             ],
           ),
@@ -96,7 +96,7 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               const SizedBox(height: 12),
               Text(_errorMessage!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textSecondary)),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.65))),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(),
@@ -109,7 +109,6 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Diagnostic Results'),
         actions: [
@@ -150,11 +149,13 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
 
   Widget _buildDeviceCard(DeviceModel? device) {
     if (device == null) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -168,7 +169,7 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: AppColors.primarySurface,
+              color: isDark ? AppColors.primaryDarkSurface : AppColors.primarySurface,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
@@ -184,17 +185,17 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               children: [
                 Text(
                   device.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
-                    color: AppColors.textPrimary,
+                    color: cs.onSurface,
                   ),
                 ),
                 Text(
                   '${AppUtils.deviceTypeLabel(device.deviceType)} • ${device.ipAddress}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: AppColors.textSecondary,
+                    color: cs.onSurface.withOpacity(0.65),
                   ),
                 ),
               ],
@@ -206,6 +207,7 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   }
 
   Widget _buildOverallResultCard() {
+    final cs = Theme.of(context).colorScheme;
     final passedCount =
         _diagnosticResult.checks.where((c) => c.passed).length;
     final totalCount = _diagnosticResult.checks.length;
@@ -246,9 +248,9 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
                 ),
                 Text(
                   '$passedCount of $totalCount checks passed',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textSecondary,
+                    color: cs.onSurface.withOpacity(0.65),
                   ),
                 ),
               ],
@@ -260,15 +262,16 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   }
 
   Widget _buildDiagnosticChecks() {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Diagnostic Checks',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: cs.onSurface,
           ),
         ),
         const SizedBox(height: 12),
@@ -280,8 +283,11 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   }
 
   Widget _buildCheckItem(DiagnosticCheck check) {
-    final backgroundColor =
-        check.passed ? AppColors.onlineLight : AppColors.offlineLight;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = check.passed
+        ? (isDark ? AppColors.onlineDark : AppColors.onlineLight)
+        : (isDark ? AppColors.offlineDark : AppColors.offlineLight);
     final borderColor = check.passed ? AppColors.online : AppColors.offline;
     final icon = check.passed ? Icons.check_circle_outline : Icons.cancel_outlined;
     final iconColor = check.passed ? AppColors.online : AppColors.offline;
@@ -304,10 +310,10 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               Expanded(
                 child: Text(
                   check.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
-                    color: AppColors.textPrimary,
+                    color: cs.onSurface,
                   ),
                 ),
               ),
@@ -324,9 +330,9 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
           const SizedBox(height: 6),
           Text(
             check.message,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AppColors.textSecondary,
+              color: cs.onSurface.withOpacity(0.65),
             ),
           ),
           if (check.details != null) ...[
@@ -338,26 +344,26 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.background,
+                color: cs.surface,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Recommended Action:',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: cs.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     check.remediation!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: AppColors.textSecondary,
+                      color: cs.onSurface.withOpacity(0.65),
                     ),
                   ),
                 ],
@@ -370,10 +376,11 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   }
 
   Widget _buildDetailsTable(Map<String, dynamic> details) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: cs.surface,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -385,17 +392,17 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               children: [
                 Text(
                   entry.key,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.textSecondary,
+                    color: cs.onSurface.withOpacity(0.65),
                   ),
                 ),
                 Text(
                   '${entry.value}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                    color: cs.onSurface,
                   ),
                 ),
               ],
@@ -407,6 +414,7 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   }
 
   Widget _buildRecommendations() {
+    final cs = Theme.of(context).colorScheme;
     final failedChecks =
         _diagnosticResult.checks.where((c) => !c.passed).toList();
 
@@ -451,12 +459,12 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Recommended Actions',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
+            color: cs.onSurface,
           ),
         ),
         const SizedBox(height: 12),
@@ -465,28 +473,28 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: cs.surface,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.divider),
+              border: Border.all(color: cs.outlineVariant),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   check.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
-                    color: AppColors.textPrimary,
+                    color: cs.onSurface,
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   check.remediation ??
                       'Contact your system administrator for assistance.',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textSecondary,
+                    color: cs.onSurface.withOpacity(0.65),
                     height: 1.5,
                   ),
                 ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
+import '../../core/utils.dart';
 import 'auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -11,285 +12,453 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
 
-  // _formKey identifies the form for validation purposes.
-  // Calling _formKey.currentState!.validate() triggers all
-  // TextFormField validators at once.
   final _formKey      = GlobalKey<FormState>();
-  final _emailCtrl    = TextEditingController();
+  final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool  _obscurePassword = true;
 
+  late final AnimationController _animCtrl;
+  late final Animation<double>   _fadeAnim;
+  late final Animation<Offset>   _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync:    this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _fadeAnim  = CurvedAnimation(
+        parent: _animCtrl, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(
+        begin: const Offset(0, 0.08), end: Offset.zero)
+        .animate(CurvedAnimation(
+            parent: _animCtrl, curve: Curves.easeOutCubic));
+
+    // Clear any stale error from a previous session
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthProvider>().clearError();
+      _animCtrl.forward();
+    });
+
+    // Clear error when user starts typing
+    _usernameCtrl.addListener(_clearError);
+    _passwordCtrl.addListener(_clearError);
+  }
+
+  void _clearError() {
+    if (context.read<AuthProvider>().errorMessage != null) {
+      context.read<AuthProvider>().clearError();
+    }
+  }
+
   @override
   void dispose() {
-    // Always dispose controllers to prevent memory leaks
-    _emailCtrl.dispose();
+    _animCtrl.dispose();
+    _usernameCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _handleLogin() async {
-    // First validate all form fields. If any are invalid, stop here.
+    FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final auth = context.read<AuthProvider>();
+    final auth    = context.read<AuthProvider>();
     final success = await auth.login(
-      _emailCtrl.text.trim(),
+      _usernameCtrl.text.trim(),
       _passwordCtrl.text,
     );
 
     if (!mounted) return;
-
     if (success) {
-      // Navigate to the correct home screen based on role
-      switch (auth.userRole) {
-        case AppConstants.roleTechnician:
-        case AppConstants.roleAdmin:
-          Navigator.of(context)
-              .pushReplacementNamed(AppConstants.technicianHomeRoute);
-          break;
-        case AppConstants.roleManager:
-          Navigator.of(context)
-              .pushReplacementNamed(AppConstants.managerHomeRoute);
-          break;
-        case AppConstants.roleCustomer:
-          Navigator.of(context)
-              .pushReplacementNamed(AppConstants.customerHomeRoute);
-          break;
-      }
+      // routeForRole resolves the correct shell for this user's role
+      Navigator.of(context).pushReplacementNamed(auth.routeForRole);
     }
-    // If login failed the AuthProvider already set errorMessage
-    // which is displayed in the error container below.
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          // SingleChildScrollView prevents overflow when the keyboard appears
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 48),
+    return GestureDetector(
+      // Dismiss keyboard when tapping outside a field
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        // No background — we paint our own gradient
+        backgroundColor: Colors.transparent,
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin:  Alignment.topCenter,
+              end:    Alignment.bottomCenter,
+              colors: [
+                AppColors.appBarGradientStart, // deep navy
+                Color(0xFF1A56DB),             // mid blue
+                AppColors.background,          // light slate at bottom
+              ],
+              stops: [0.0, 0.35, 0.35],
+            ),
+          ),
+          child: SafeArea(
+            child: FadeTransition(
+              opacity: _fadeAnim,
+              child: SlideTransition(
+                position: _slideAnim,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
 
-              // ── Header ──────────────────────────────────────────────
-              Center(
-                child: Column(
-                  children: [
-                    Container(
-                      width:      80,
-                      height:     80,
-                      decoration: BoxDecoration(
-                        color:        AppColors.primary,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Icon(
-                        Icons.network_check,
-                        size:  44,
-                        color: AppColors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Welcome Back',
-                      style: TextStyle(
-                        fontSize:   26,
-                        fontWeight: FontWeight.bold,
-                        color:      AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Sign in to your ISP Monitor account',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color:    AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                      const SizedBox(height: 44),
+
+                      // ── Logo + headline ──────────────────────────────
+                      _buildHeader(),
+
+                      const SizedBox(height: 32),
+
+                      // ── Card containing the form ─────────────────────
+                      _buildFormCard(),
+
+                      const SizedBox(height: 20),
+
+                      // ── Sign up link ─────────────────────────────────
+                      _buildSignUpRow(),
+
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
               ),
-
-              const SizedBox(height: 40),
-
-              // ── Error Message ────────────────────────────────────────
-              // Consumer rebuilds only this widget when AuthProvider changes
-              Consumer<AuthProvider>(
-                builder: (context, auth, _) {
-                  if (auth.errorMessage == null) return const SizedBox.shrink();
-                  return Container(
-                    width:  double.infinity,
-                    margin: const EdgeInsets.only(bottom: 20),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color:        AppColors.offlineLight,
-                      borderRadius: BorderRadius.circular(10),
-                      border:       Border.all(color: AppColors.offline.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.error_outline,
-                            color: AppColors.offline, size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            auth.errorMessage!,
-                            style: const TextStyle(
-                              color: AppColors.offline, fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-
-              // ── Login Form ───────────────────────────────────────────
-              Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-
-                    // Email field
-                    const Text('Email Address',
-                        style: TextStyle(
-                          fontSize:   14,
-                          fontWeight: FontWeight.w600,
-                          color:      AppColors.textPrimary,
-                        )),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller:   _emailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration:   const InputDecoration(
-                        hintText:    'Enter your email',
-                        prefixIcon:  Icon(Icons.email_outlined),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your email address';
-                        }
-                        if (!value.contains('@')) {
-                          return 'Please enter a valid email address';
-                        }
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Password field
-                    const Text('Password',
-                        style: TextStyle(
-                          fontSize:   14,
-                          fontWeight: FontWeight.w600,
-                          color:      AppColors.textPrimary,
-                        )),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller:     _passwordCtrl,
-                      obscureText:    _obscurePassword,
-                      decoration:     InputDecoration(
-                        hintText:   'Enter your password',
-                        prefixIcon: const Icon(Icons.lock_outlined),
-                        // Eye icon to show/hide password
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                          ),
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your password';
-                        }
-                        if (value.length < 6) {
-                          return 'Password must be at least 6 characters';
-                        }
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Forgot password link
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {},
-                        child: const Text('Forgot Password?'),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Login button
-                    Consumer<AuthProvider>(
-                      builder: (context, auth, _) {
-                        return ElevatedButton(
-                          onPressed: auth.isLoading ? null : _handleLogin,
-                          child: auth.isLoading
-                              ? const SizedBox(
-                                  height: 22,
-                                  width:  22,
-                                  child:  CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color:       Colors.white,
-                                  ),
-                                )
-                              : const Text('Sign In'),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 40),
-
-              // ── Quick Login Hint (development only) ──────────────────
-              Container(
-                padding:    const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color:        AppColors.primarySurface,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Test Accounts',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color:      AppColors.primary,
-                          fontSize:   13,
-                        )),
-                    SizedBox(height: 6),
-                    Text('Technician: technician@isp.co.ke / Tech1234!',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    Text('Manager:    manager@isp.co.ke / Man1234!',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    Text('Customer:   customer@isp.co.ke / Cust1234!',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 32),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  // ── Header section ────────────────────────────────────────────────────────
+
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        // Logo
+        Container(
+          width:  76,
+          height: 76,
+          decoration: BoxDecoration(
+            color:        Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(20),
+            border:       Border.all(
+              color: Colors.white.withOpacity(0.3),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color:      Colors.black.withOpacity(0.2),
+                blurRadius: 16,
+                offset:     const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.network_check_rounded,
+            size:  40,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'ISP Monitor',
+          style: TextStyle(
+            fontSize:      28,
+            fontWeight:    FontWeight.w800,
+            color:         Colors.white,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Network Operations Centre',
+          style: TextStyle(
+            fontSize: 13,
+            color:    Colors.white.withOpacity(0.7),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Form card ─────────────────────────────────────────────────────────────
+
+  Widget _buildFormCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color:        Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow:    AppShadows.heroCard,
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          Text('Sign In', style: AppTextStyles.heading1),
+          const SizedBox(height: 4),
+          Text(
+            'Enter your credentials to continue',
+            style: AppTextStyles.bodySmall,
+          ),
+
+          const SizedBox(height: 24),
+
+          // Error message
+          Consumer<AuthProvider>(
+            builder: (context, auth, _) {
+              if (auth.errorMessage == null) return const SizedBox.shrink();
+              return _buildErrorBanner(auth.errorMessage!);
+            },
+          ),
+
+          Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+                // Username field
+                _buildFieldLabel('Username or Email'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller:   _usernameCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    hintText:   'technician@isp.co.ke',
+                    prefixIcon: Icon(Icons.person_outline_rounded),
+                  ),
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Please enter your username or email'
+                      : null,
+                ),
+
+                const SizedBox(height: 18),
+
+                // Password field
+                _buildFieldLabel('Password'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller:      _passwordCtrl,
+                  obscureText:     _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _handleLogin(),
+                  decoration: InputDecoration(
+                    hintText:   '••••••••',
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                        size: 20,
+                      ),
+                      onPressed: () => setState(
+                          () => _obscurePassword = !_obscurePassword),
+                    ),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) {
+                      return 'Please enter your password';
+                    }
+                    if (v.length < 6) {
+                      return 'Password must be at least 6 characters';
+                    }
+                    return null;
+                  },
+                ),
+
+                // Forgot password
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {},
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 8),
+                    ),
+                    child: const Text(
+                      'Forgot Password?',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // Login button
+                Consumer<AuthProvider>(
+                  builder: (context, auth, _) => ElevatedButton(
+                    onPressed: auth.isLoading ? null : () {
+                      AppUtils.haptic();
+                      _handleLogin();
+                    },
+                    child: auth.isLoading
+                        ? const SizedBox(
+                            height: 22,
+                            width:  22,
+                            child:  CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color:       Colors.white,
+                            ),
+                          )
+                        : const Text('Sign In'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Demo credentials hint
+          const SizedBox(height: 20),
+          _buildDemoHint(),
+        ],
+      ),
+    );
+  }
+
+  // ── Sub-widgets ───────────────────────────────────────────────────────────
+
+  Widget _buildFieldLabel(String label) {
+    return Text(
+      label,
+      style: AppTextStyles.labelBold,
+    );
+  }
+
+  Widget _buildErrorBanner(String message) {
+    return Container(
+      width:   double.infinity,
+      margin:  const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color:        AppColors.offlineLight,
+        borderRadius: BorderRadius.circular(10),
+        border:       Border.all(
+            color: AppColors.offline.withOpacity(0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline_rounded,
+              color: AppColors.offline, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.offline,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDemoHint() {
+    return Container(
+      padding:    const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color:        AppColors.primarySurfaceOf(context),
+        borderRadius: BorderRadius.circular(10),
+        border:       Border.all(
+            color: AppColors.primary.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.info_outline_rounded,
+                  size: 14, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Demo Accounts',
+                style: AppTextStyles.labelBold.copyWith(
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          _demoRow(Icons.build_rounded,      'technician@isp.co.ke'),
+          _demoRow(Icons.bar_chart_rounded,  'manager@isp.co.ke'),
+          _demoRow(Icons.person_rounded,     'customer@isp.co.ke'),
+          const SizedBox(height: 4),
+          Text(
+            'Password: password123',
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _demoRow(IconData icon, String email) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Row(
+        children: [
+          Icon(icon, size: 11, color: AppColors.textSecondary),
+          const SizedBox(width: 5),
+          GestureDetector(
+            onTap: () {
+              _usernameCtrl.text = email;
+              _passwordCtrl.text = 'password123';
+              AppUtils.hapticSelect();
+            },
+            child: Text(
+              email,
+              style: AppTextStyles.mono.copyWith(
+                fontSize: 11,
+                color:    AppColors.primary,
+                decoration: TextDecoration.underline,
+                decorationColor: AppColors.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignUpRow() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          "Don't have an account?  ",
+          style: AppTextStyles.bodySmall,
+        ),
+        GestureDetector(
+          onTap: () {
+            AppUtils.hapticSelect();
+            Navigator.of(context).pushNamed(AppConstants.registerRoute);
+          },
+          child: Text(
+            'Sign Up',
+            style: AppTextStyles.labelBold.copyWith(
+              color: AppColors.primary,
+              decoration: TextDecoration.underline,
+              decorationColor: AppColors.primary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -56,19 +56,24 @@ class UserModel {
   /// models should be immutable so instead of changing fields
   /// directly we create a new instance with updated values.
   UserModel copyWith({
+    int?    id,
+    String? email,
+    String? username,
     String? role,
-    String? fcmToken,
     bool?   isActive,
+    String? fcmToken,
+    String? dateJoined,
+    String? lastLogin,
   }) {
     return UserModel(
-      id:         id,
-      email:      email,
-      username:   username,
+      id:         id         ?? this.id,
+      email:      email      ?? this.email,
+      username:   username   ?? this.username,
       role:       role       ?? this.role,
       isActive:   isActive   ?? this.isActive,
       fcmToken:   fcmToken   ?? this.fcmToken,
-      dateJoined: dateJoined,
-      lastLogin:  lastLogin,
+      dateJoined: dateJoined ?? this.dateJoined,
+      lastLogin:  lastLogin  ?? this.lastLogin,
     );
   }
 }

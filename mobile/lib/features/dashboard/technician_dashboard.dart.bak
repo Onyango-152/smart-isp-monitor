@@ -1,0 +1,1101 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../core/constants.dart';
+import '../../core/theme.dart';
+import '../../core/utils.dart';
+import '../../core/widgets/device_list_tile.dart';
+import '../../core/widgets/empty_state.dart';
+import '../../core/widgets/section_header.dart';
+import '../../core/widgets/shimmer_skeleton.dart';
+import '../../core/widgets/summary_card.dart';
+import '../../data/dummy_data.dart';
+import '../../data/models/alert_model.dart';
+import '../../data/models/device_model.dart';
+import '../../features/auth/auth_provider.dart';
+import '../../services/connectivity_provider.dart';
+import 'dashboard_provider.dart';
+import 'technician_shell.dart';
+
+/// TechnicianDashboard — main landing screen for the technician role.
+///
+/// Layout (top → bottom):
+///   AppBar (gradient, greeting, notification bell)
+///   Hero strip (network uptime ring + summary)
+///   SummaryCard row (Total / Online / Offline / Alerts)
+///   Critical alert banner (shown only when criticalAlerts > 0)
+///   Weekly faults bar chart
+///   Fleet Status section → top-5 devices by urgency → DeviceListTile
+///   Recent Alerts section → top-3 unresolved → _AlertPreviewTile
+///   FAB: Add Device
+///
+/// All data comes from DashboardProvider. Pull-to-refresh re-calls
+/// loadDashboard(). Error state delegates to EmptyState widget.
+class TechnicianDashboard extends StatefulWidget {
+  const TechnicianDashboard({super.key});
+
+  @override
+  State<TechnicianDashboard> createState() => _TechnicianDashboardState();
+}
+
+class _TechnicianDashboardState extends State<TechnicianDashboard>
+    with SingleTickerProviderStateMixin {
+
+  late final AnimationController _animCtrl;
+  late final Animation<double>   _fadeIn;
+  late final Animation<Offset>   _slideUp;
+  Timer? _freshnessTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync:    this,
+      duration: const Duration(milliseconds: 650),
+    );
+    _fadeIn  = CurvedAnimation(
+      parent: _animCtrl,
+      curve:  const Interval(0.0, 0.75, curve: Curves.easeOut),
+    );
+    _slideUp = Tween<Offset>(
+      begin: const Offset(0, 0.05),
+      end:   Offset.zero,
+    ).animate(CurvedAnimation(
+        parent: _animCtrl, curve: Curves.easeOutCubic));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<DashboardProvider>().loadDashboard().then((_) {
+        if (mounted) _animCtrl.forward();
+      });
+    });
+
+    // Tick every 15s so the "Updated X ago" subtitle stays fresh.
+    _freshnessTicker = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) { if (mounted) setState(() {}); },
+    );
+  }
+
+  @override
+  void dispose() {
+    _freshnessTicker?.cancel();
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: _buildAppBar(context.read<AuthProvider>()),
+      body: Consumer<DashboardProvider>(
+        builder: (context, dashboard, _) {
+
+          if (dashboard.isLoading) {
+            return ShimmerSkeleton.dashboard();
+          }
+
+          if (dashboard.hasError) {
+            return EmptyState(
+              icon:        Icons.cloud_off_rounded,
+              title:       'Could Not Load Dashboard',
+              message:     dashboard.errorMessage!,
+              color:       AppColors.offline,
+              actionLabel: 'Retry',
+              onAction:    dashboard.loadDashboard,
+            );
+          }
+
+          return Column(
+            children: [
+              const ConnectivityBanner(),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: dashboard.refresh,
+                  color:     AppColors.primary,
+                  child: FadeTransition(
+                    opacity: _fadeIn,
+                    child:   SlideTransition(
+                      position: _slideUp,
+                      child:    _buildScrollBody(dashboard),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+      floatingActionButton: _buildFab(),
+    );
+  }
+
+  // ── App Bar ───────────────────────────────────────────────────────────────
+
+  PreferredSizeWidget _buildAppBar(AuthProvider auth) {
+    final firstName = (auth.currentUser?.username ?? 'Technician')
+        .split(' ')
+        .first;
+
+    return AppBar(
+      automaticallyImplyLeading: false,
+      elevation: 0,
+      leading: Builder(
+        builder: (ctx) {
+          final hasDrawer = Scaffold.maybeOf(ctx)?.hasDrawer ?? false;
+          if (!hasDrawer) return const SizedBox.shrink();
+          return IconButton(
+            icon: const Icon(Icons.menu_rounded, color: Colors.white),
+            onPressed: () { AppUtils.haptic(); Scaffold.of(ctx).openDrawer(); },
+          );
+        },
+      ),
+      flexibleSpace: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin:  Alignment.topLeft,
+            end:    Alignment.bottomRight,
+            colors: [
+              AppColors.appBarGradientStart,
+              AppColors.appBarGradientEnd,
+            ],
+          ),
+        ),
+      ),
+      title: Row(
+        children: [
+          // Initial avatar
+          Container(
+            width:      38,
+            height:     38,
+            decoration: BoxDecoration(
+              color:        Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Text(
+                firstName[0].toUpperCase(),
+                style: const TextStyle(
+                  color:      Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize:   16,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Good ${_greeting()}, $firstName',
+                style: AppTextStyles.appBarTitle.copyWith(fontSize: 14),
+              ),
+              Consumer<DashboardProvider>(
+                builder: (_, d, __) => Text(
+                  d.lastUpdated != null
+                      ? 'Updated ${AppUtils.timeAgo(d.lastUpdated!.toIso8601String())}'
+                      : 'Network Operations Centre',
+                  style: AppTextStyles.appBarSubtitle,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        Consumer<DashboardProvider>(
+          builder: (context, dashboard, _) => Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined,
+                    color: Colors.white),
+                onPressed: () {
+                  AppUtils.haptic();
+                  Navigator.of(context)
+                      .pushNamed(AppConstants.notificationsRoute);
+                },
+              ),
+              if (dashboard.criticalAlerts > 0)
+                Positioned(
+                  right: 8, top: 8,
+                  child: Container(
+                    width:  10, height: 10,
+                    decoration: BoxDecoration(
+                      color:  AppColors.offline,
+                      shape:  BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
+
+  // ── Scroll body ───────────────────────────────────────────────────────────
+
+  Widget _buildScrollBody(DashboardProvider dashboard) {
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+
+        // Hero uptime strip
+        SliverToBoxAdapter(child: _buildHeroStrip(dashboard)),
+
+        // 4-column KPI row
+        SliverToBoxAdapter(child: _buildSummaryRow(dashboard)),
+
+        // MTTR · Uptime · Alert Velocity
+        SliverToBoxAdapter(child: _buildMetricStrip(dashboard)),
+
+        // Critical banner
+        if (dashboard.criticalAlerts > 0)
+          SliverToBoxAdapter(
+              child: _buildCriticalBanner(dashboard.criticalAlerts)),
+
+        // Weekly faults bar chart
+        SliverToBoxAdapter(child: _buildWeeklyChart(dashboard)),
+
+        // ── Needs Attention — priority queue ─────────────────────────
+        SliverToBoxAdapter(
+          child: SectionHeader(
+            title:       'Needs Attention',
+            subtitle:    '${dashboard.offlineDevices + dashboard.degradedDevices}'
+                ' devices need action',
+            icon:        Icons.priority_high_rounded,
+            iconColor:   AppColors.offline,
+            actionLabel: 'See All',
+            onAction:    () => TechnicianShell.switchTab(context, 1),
+          ),
+        ),
+
+        dashboard.needsAttention.isEmpty
+            ? SliverToBoxAdapter(
+                child: EmptyState(
+                  icon:    Icons.check_circle_rounded,
+                  title:   'All Clear',
+                  message: 'Every device is operating normally.',
+                  color:   AppColors.online,
+                ),
+              )
+            : SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) {
+                    final item = dashboard.needsAttention[i];
+                    return _StaggeredItem(
+                      delay: Duration(milliseconds: 60 * i),
+                      child: _PriorityQueueTile(
+                        device:   item.device,
+                        topAlert: item.topAlert,
+                        onTap: () => Navigator.of(context).pushNamed(
+                          AppConstants.deviceDetailRoute,
+                          arguments: item.device,
+                        ),
+                      ),
+                    );
+                  },
+                  childCount: dashboard.needsAttention.length,
+                ),
+              ),
+
+        // ── Fleet Status ─────────────────────────────────────────────
+        SliverToBoxAdapter(
+          child: SectionHeader(
+            title:       'Fleet Status',
+            subtitle:    '${dashboard.totalDevices} devices monitored',
+            icon:        Icons.router_rounded,
+            actionLabel: 'See All',
+            onAction:    () => TechnicianShell.switchTab(context, 1),
+          ),
+        ),
+
+        dashboard.devices.isEmpty
+            ? SliverToBoxAdapter(
+                child: EmptyState(
+                  icon:        Icons.router_outlined,
+                  title:       'No Devices',
+                  message:     'Add your first device to start monitoring.',
+                  actionLabel: 'Add Device',
+                  onAction:    () {},
+                ),
+              )
+            : SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) {
+                    final device = dashboard.devices[i];
+                    final metric = DummyData.latestMetrics
+                        .where((m) => m.deviceId == device.id)
+                        .firstOrNull;
+                    return _StaggeredItem(
+                      delay: Duration(milliseconds: 60 * i),
+                      child: DeviceListTile(
+                        device:       device,
+                        latestMetric: metric,
+                        onTap: () {
+                          Navigator.of(context).pushNamed(
+                            AppConstants.deviceDetailRoute,
+                            arguments: device,
+                          );
+                        },
+                      ),
+                    );
+                  },
+                  childCount: dashboard.devices.length,
+                ),
+              ),
+
+        // ── Recent Alerts ─────────────────────────────────────────────
+        if (dashboard.recentAlerts.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: SectionHeader(
+              title:       'Recent Alerts',
+              subtitle:    '${dashboard.activeAlertsCount} unresolved',
+              icon:        Icons.warning_rounded,
+              iconColor:   AppColors.degraded,
+              actionLabel: 'See All',
+              onAction:    () => TechnicianShell.switchTab(context, 2),
+            ),
+          ),
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => _AlertPreviewTile(
+                alert: dashboard.recentAlerts[i],
+                onTap: () => Navigator.of(context).pushNamed(
+                  AppConstants.alertDetailRoute,
+                  arguments: dashboard.recentAlerts[i],
+                ),
+              ),
+              childCount: dashboard.recentAlerts.length,
+            ),
+          ),
+        ],
+
+        const SliverToBoxAdapter(child: SizedBox(height: 100)),
+      ],
+    );
+  }
+
+  // ── Hero strip ────────────────────────────────────────────────────────────
+
+  Widget _buildHeroStrip(DashboardProvider dashboard) {
+    final uptime      = dashboard.networkUptime;
+    final ringColor   = uptime >= 99
+        ? Colors.greenAccent
+        : uptime >= 95 ? Colors.orangeAccent : Colors.redAccent;
+    final statusColor = uptime >= 99
+        ? AppColors.online
+        : uptime >= 95 ? AppColors.degraded : AppColors.offline;
+    final label = uptime >= 99
+        ? 'Healthy'
+        : uptime >= 95 ? 'Degraded' : 'Critical';
+
+    return Container(
+      margin:  const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin:  Alignment.topLeft,
+          end:    Alignment.bottomRight,
+          colors: [
+            AppColors.appBarGradientStart,
+            AppColors.appBarGradientEnd,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow:    AppShadows.heroCard,
+      ),
+      child: Row(
+        children: [
+          // Uptime ring
+          SizedBox(
+            width:  72, height: 72,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CircularProgressIndicator(
+                  value:           uptime / 100,
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                  valueColor:      AlwaysStoppedAnimation<Color>(ringColor),
+                  strokeWidth:     6,
+                  strokeCap:       StrokeCap.round,
+                ),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '${uptime.toStringAsFixed(0)}%',
+                      style: const TextStyle(
+                        color:      Colors.white,
+                        fontSize:   14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Text('uptime',
+                        style: TextStyle(
+                            color: Colors.white54, fontSize: 9)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8, height: 8,
+                      decoration: BoxDecoration(
+                          color: statusColor, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Network $label',
+                      style: TextStyle(
+                        color:         ringColor,
+                        fontSize:      13,
+                        fontWeight:    FontWeight.w600,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${uptime.toStringAsFixed(2)}% this week',
+                  style: const TextStyle(
+                    color:         Colors.white,
+                    fontSize:      22,
+                    fontWeight:    FontWeight.bold,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Avg ${AppUtils.formatLatency(dashboard.avgLatency)}  ·  '
+                  '${dashboard.activeAlertsCount} open  ·  '
+                  '${dashboard.faultsThisWeek} faults',
+                  style: const TextStyle(
+                      color: Colors.white60, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Summary cards row ─────────────────────────────────────────────────────
+
+  Widget _buildSummaryRow(DashboardProvider dashboard) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+      child: Row(
+        children: [
+          Expanded(child: SummaryCard(
+            label:           'Total',
+            value:           '${dashboard.totalDevices}',
+            intValue:        dashboard.totalDevices,
+            icon:            Icons.router_rounded,
+            color:           AppColors.primary,
+            backgroundColor: AppColors.primarySurface,
+            onTap:           () => TechnicianShell.switchTab(context, 1),
+          )),
+          const SizedBox(width: 10),
+          Expanded(child: SummaryCard(
+            label:           'Online',
+            value:           '${dashboard.onlineDevices}',
+            intValue:        dashboard.onlineDevices,
+            icon:            Icons.check_circle_rounded,
+            color:           AppColors.online,
+            backgroundColor: AppColors.onlineLight,
+          )),
+          const SizedBox(width: 10),
+          Expanded(child: SummaryCard(
+            label:           'Offline',
+            value:           '${dashboard.offlineDevices}',
+            intValue:        dashboard.offlineDevices,
+            icon:            Icons.cancel_rounded,
+            color:           AppColors.offline,
+            backgroundColor: AppColors.offlineLight,
+          )),
+          const SizedBox(width: 10),
+          Expanded(child: SummaryCard(
+            label:           'Alerts',
+            value:           '${dashboard.activeAlertsCount}',
+            intValue:        dashboard.activeAlertsCount,
+            icon:            Icons.warning_rounded,
+            color:           AppColors.degraded,
+            backgroundColor: AppColors.degradedLight,
+            showBadge:       dashboard.criticalAlerts > 0,
+            onTap:           () => TechnicianShell.switchTab(context, 2),
+          )),
+        ],
+      ),
+    );
+  }
+
+  // ── MTTR · Uptime · Alert Velocity strip ──────────────────────────────────
+
+  Widget _buildMetricStrip(DashboardProvider dashboard) {
+    final mttr = dashboard.mttrMinutes;
+    final trend = dashboard.mttrTrendPct;
+    final velocity = dashboard.alertsLastHour;
+    final velocityHigh = dashboard.alertVelocityHigh;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Row(children: [
+        // ── MTTR Card ──
+        Expanded(child: _MetricTile(
+          icon: Icons.timer_outlined,
+          iconColor: AppColors.primary,
+          label: 'MTTR',
+          value: mttr > 0 ? '${mttr.toStringAsFixed(0)}m' : '—',
+          trailing: trend != 0
+              ? Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(
+                    trend > 0 ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                    size: 12,
+                    color: trend > 0 ? AppColors.online : AppColors.offline,
+                  ),
+                  Text(
+                    '${trend.abs().toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w700,
+                      color: trend > 0 ? AppColors.online : AppColors.offline),
+                  ),
+                ])
+              : null,
+        )),
+        const SizedBox(width: 10),
+        // ── Uptime Card ──
+        Expanded(child: _MetricTile(
+          icon: Icons.signal_cellular_alt_rounded,
+          iconColor: dashboard.networkUptime >= 99
+              ? AppColors.online
+              : dashboard.networkUptime >= 95
+                  ? AppColors.degraded
+                  : AppColors.offline,
+          label: 'Uptime',
+          value: '${dashboard.networkUptime.toStringAsFixed(1)}%',
+        )),
+        const SizedBox(width: 10),
+        // ── Alert Velocity Card ──
+        Expanded(child: _MetricTile(
+          icon: velocityHigh
+              ? Icons.trending_up_rounded
+              : Icons.trending_down_rounded,
+          iconColor: velocityHigh ? AppColors.offline : AppColors.online,
+          label: 'Last Hour',
+          value: '$velocity alert${velocity != 1 ? "s" : ""}',
+          trailing: Text(
+            velocityHigh ? 'Above avg' : 'Quieter',
+            style: TextStyle(
+              fontSize: 9, fontWeight: FontWeight.w600,
+              color: velocityHigh ? AppColors.offline : AppColors.online),
+          ),
+        )),
+      ]),
+    );
+  }
+
+  // ── Critical alert banner ─────────────────────────────────────────────────
+
+  Widget _buildCriticalBanner(int count) {
+    return GestureDetector(
+      onTap: () {
+        AppUtils.haptic();
+        TechnicianShell.switchTab(context, 2);
+      },
+      child: Container(
+        margin:  const EdgeInsets.fromLTRB(16, 10, 16, 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color:        AppColors.offlineLight,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: AppColors.offline.withOpacity(0.35)),
+          boxShadow: AppShadows.statusGlow(AppColors.offline),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width:  34, height: 34,
+              decoration: BoxDecoration(
+                color:        AppColors.offline.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.priority_high_rounded,
+                  color: AppColors.offline, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$count critical alert${count > 1 ? "s" : ""} '
+                    'need attention',
+                    style: AppTextStyles.heading3.copyWith(
+                        color: AppColors.offline),
+                  ),
+                  Text('Tap to view all alerts',
+                      style: AppTextStyles.caption.copyWith(
+                          color: AppColors.offline)),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded,
+                color: AppColors.offline, size: 13),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Weekly faults bar chart ───────────────────────────────────────────────
+
+  Widget _buildWeeklyChart(DashboardProvider dashboard) {
+    final faults = dashboard.weeklyFaults;
+    if (faults.isEmpty) return const SizedBox.shrink();
+
+    final maxVal = faults
+        .map((f) => f['faults'] as int)
+        .fold(0, (a, b) => a > b ? a : b);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+      child: Container(
+        padding:    const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color:        Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow:    AppShadows.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.bar_chart_rounded,
+                    size: 16, color: AppColors.primary),
+                const SizedBox(width: 6),
+                Text('Weekly Faults', style: AppTextStyles.heading3),
+                const Spacer(),
+                Text('${dashboard.faultsThisWeek} total',
+                    style: AppTextStyles.caption),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 80,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: faults.asMap().entries.map((entry) {
+                  final idx     = entry.key;
+                  final f       = entry.value;
+                  final count   = f['faults']  as int;
+                  final isToday = f['isToday'] as bool;
+                  final barH    = maxVal > 0
+                      ? (count / maxVal) * 56.0
+                      : 4.0;
+
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (isToday)
+                            Text('$count',
+                                style: AppTextStyles.caption.copyWith(
+                                  color:      AppColors.primary,
+                                  fontWeight: FontWeight.w700,
+                                )),
+                          const SizedBox(height: 2),
+                          AnimatedContainer(
+                            duration: Duration(
+                                milliseconds: 400 + idx * 60),
+                            curve:  Curves.easeOutCubic,
+                            height: barH.clamp(4.0, 56.0),
+                            decoration: BoxDecoration(
+                              color: isToday
+                                  ? AppColors.primary
+                                  : AppColors.primarySurface,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            isToday ? 'Today'
+                                    : _shortDay(f['date'] as String),
+                            style: AppTextStyles.caption.copyWith(
+                              fontSize: 9,
+                              color:    isToday
+                                  ? AppColors.primary
+                                  : AppColors.textHint,
+                              fontWeight: isToday
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── FAB ───────────────────────────────────────────────────────────────────
+
+  Widget _buildFab() {
+    return FloatingActionButton.extended(
+      onPressed: () => AppUtils.haptic(),
+      icon:  const Icon(Icons.add_rounded, color: Colors.white),
+      label: const Text(
+        'Add Device',
+        style: TextStyle(
+            color:      Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize:   14),
+      ),
+    );
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Morning';
+    if (h < 17) return 'Afternoon';
+    return 'Evening';
+  }
+
+  String _shortDay(String iso) {
+    try {
+      final dt   = DateTime.parse(iso).toLocal();
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      return days[dt.weekday % 7];
+    } catch (_) {
+      return '';
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _StaggeredItem — delayed fade+slide entrance for list items
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _StaggeredItem extends StatefulWidget {
+  final Widget child; final Duration delay;
+  const _StaggeredItem({required this.child, required this.delay});
+  @override State<_StaggeredItem> createState() => _StaggeredItemState();
+}
+
+class _StaggeredItemState extends State<_StaggeredItem>
+    with SingleTickerProviderStateMixin {
+
+  late final AnimationController _ctrl;
+  late final Animation<double>   _fade;
+  late final Animation<Offset>   _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl  = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 400));
+    _fade  = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+            begin: const Offset(0, 0.08), end: Offset.zero)
+        .animate(CurvedAnimation(
+            parent: _ctrl, curve: Curves.easeOutCubic));
+    Future.delayed(widget.delay, () { if (mounted) _ctrl.forward(); });
+  }
+
+  @override void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+        opacity: _fade,
+        child: SlideTransition(position: _slide, child: widget.child),
+      );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _AlertPreviewTile — compact alert row for the dashboard preview section
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AlertPreviewTile extends StatelessWidget {
+  final AlertModel   alert;
+  final VoidCallback onTap;
+  const _AlertPreviewTile({required this.alert, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppUtils.severityColor(alert.severity);
+    final bg    = AppUtils.severityBgColor(alert.severity);
+
+    return GestureDetector(
+      onTap: () { AppUtils.haptic(); onTap(); },
+      child: Container(
+        margin:  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color:        Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow:    AppShadows.card,
+          border:       Border(left: BorderSide(color: color, width: 3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width:  34, height: 34,
+              decoration: BoxDecoration(
+                  color: bg, borderRadius: BorderRadius.circular(8)),
+              child: Icon(Icons.warning_rounded, color: color, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(alert.deviceName,
+                      style: AppTextStyles.heading3,
+                      overflow: TextOverflow.ellipsis),
+                  Text(alert.message,
+                      style: AppTextStyles.caption,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(AppUtils.timeAgo(alert.triggeredAt),
+                    style: AppTextStyles.caption),
+                const SizedBox(height: 3),
+                const Icon(Icons.chevron_right_rounded,
+                    size: 16, color: AppColors.textHint),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _MetricTile — compact card for MTTR / Uptime / Alert Velocity
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MetricTile extends StatelessWidget {
+  final IconData icon;
+  final Color    iconColor;
+  final String   label;
+  final String   value;
+  final Widget?  trailing;
+
+  const _MetricTile({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, size: 16, color: iconColor),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(label,
+                style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Text(value,
+            style: AppTextStyles.heading3.copyWith(fontSize: 15)),
+          if (trailing != null) ...[
+            const SizedBox(height: 2),
+            trailing!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _PriorityQueueTile — ranked "needs attention" row with inline alert message
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PriorityQueueTile extends StatelessWidget {
+  final DeviceModel  device;
+  final AlertModel?  topAlert;
+  final VoidCallback onTap;
+
+  const _PriorityQueueTile({
+    required this.device,
+    required this.topAlert,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = AppUtils.statusColor(device.status);
+    final isOffline   = device.status == AppConstants.statusOffline;
+    final alertColor  = topAlert != null
+        ? AppUtils.severityColor(topAlert!.severity)
+        : null;
+
+    return GestureDetector(
+      onTap: () { AppUtils.haptic(); onTap(); },
+      child: Container(
+        margin:  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color:        Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow:    AppShadows.card,
+          border: Border(
+            left: BorderSide(color: statusColor, width: 4),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Status icon
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isOffline
+                    ? Icons.power_off_rounded
+                    : Icons.warning_amber_rounded,
+                color: statusColor,
+                size:  22,
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // Device name + alert message
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          device.name,
+                          style: AppTextStyles.heading3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isOffline ? 'OFFLINE' : 'DEGRADED',
+                          style: TextStyle(
+                            fontSize:      10,
+                            fontWeight:    FontWeight.w800,
+                            color:         statusColor,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // Inline alert message — the key value-add
+                  if (topAlert != null) ...[
+                    Row(
+                      children: [
+                        Container(
+                          width: 6, height: 6,
+                          decoration: BoxDecoration(
+                            color: alertColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            topAlert!.message,
+                            style: AppTextStyles.caption.copyWith(
+                              color: alertColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                  ],
+                  // Location + IP
+                  Text(
+                    '${device.ipAddress}'
+                    '${device.location != null ? "  ·  ${device.location}" : ""}',
+                    style: AppTextStyles.caption,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Chevron
+            const Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: Icon(Icons.chevron_right_rounded,
+                  size: 18, color: AppColors.textHint),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -2,15 +2,17 @@ from django.urls import path
 from . import views
 
 # app_name creates a namespace for these URLs.
-# This means you can refer to them as 'alerts:list' elsewhere in the
-# project which avoids naming conflicts if two apps have a URL
-# with the same name.
 app_name = 'alerts'
 
 urlpatterns = [
+    # Root list — GET /api/alerts/ → matches alertsEndpoint in Flutter
+    path('',                      views.AlertListView.as_view(),           name='alert-list'),
+
+    # Customer-scoped list — GET /api/alerts/my-alerts/
+    path('my-alerts/',            views.MyAlertsView.as_view(),            name='my-alerts'),
 
     # Alert management endpoints
-    path('list/',                 views.AlertListView.as_view(),           name='alert-list'),
+    path('list/',                 views.AlertListView.as_view(),           name='alert-list-legacy'),
     path('<int:pk>/',             views.AlertDetailView.as_view(),         name='alert-detail'),
     path('<int:pk>/acknowledge/', views.AcknowledgeAlertView.as_view(),    name='acknowledge-alert'),
     path('<int:pk>/resolve/',     views.ResolveAlertView.as_view(),        name='resolve-alert'),

@@ -37,9 +37,13 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // After 2.5 seconds navigate to the appropriate screen
-    Future.delayed(const Duration(milliseconds: 2500), () {
-      if (mounted) _navigate();
+    // After 2.5 seconds try to restore a saved session, then navigate
+    Future.delayed(const Duration(milliseconds: 2500), () async {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      await auth.tryAutoLogin();
+      if (!mounted) return;
+      _navigate();
     });
   }
 
