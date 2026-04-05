@@ -17,6 +17,8 @@ class AppConstants {
   static const String loginEndpoint        = '/users/login/';
   static const String registerEndpoint     = '/users/register/';
   static const String logoutEndpoint       = '/users/logout/';
+  static const String verifyEmailEndpoint  = '/users/verify-email/';
+  static const String resendOtpEndpoint    = '/users/resend-otp/';
   static const String profileEndpoint      = '/users/profile/';
   static const String tokenRefreshEndpoint = '/users/token/refresh/';
   static const String devicesEndpoint         = '/devices/';
@@ -40,6 +42,7 @@ class AppConstants {
   static const String splashRoute         = '/';
   static const String loginRoute          = '/login';
   static const String registerRoute       = '/register';
+  static const String verifyEmailRoute    = '/verify-email';
   static const String technicianHomeRoute = '/technician';
   static const String managerHomeRoute    = '/manager';
   static const String customerHomeRoute   = '/customer';

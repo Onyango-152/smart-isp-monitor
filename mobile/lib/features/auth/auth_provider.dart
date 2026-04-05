@@ -21,7 +21,7 @@ class AuthProvider extends ChangeNotifier {
 
   // ── Demo mode toggle ──────────────────────────────────────────────────────
   /// Set to false on integration day to use the real Django backend.
-  static const bool _useDummyLogin = true;
+  static const bool _useDummyLogin = false;
 
   // ── State ─────────────────────────────────────────────────────────────────
   UserModel? _currentUser;
@@ -111,21 +111,8 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _setLoading(true);
 
-    if (_useDummyLogin) {
-      // In demo mode, registration always succeeds and logs in as technician
-      await Future.delayed(const Duration(milliseconds: 600));
-      _currentUser = UserModel(
-        id: 1, email: email, username: username,
-        role: role.isNotEmpty ? role : AppConstants.roleTechnician,
-        isActive: true,
-      );
-      _isLoading   = false;
-      notifyListeners();
-      return true;
-    }
-
     try {
-      final data = await AuthService.register(
+      await AuthService.register(
         username:        username,
         email:           email,
         password:        password,
@@ -135,11 +122,47 @@ class AuthProvider extends ChangeNotifier {
         lastName:        lastName,
         phone:           phone,
       );
-      return _handleAuthResponse(data);
+      _isLoading = false;
+      notifyListeners();
+      return true;
     } on DioException catch (e) {
       return _fail(_extractDioError(e));
     } catch (_) {
       return _fail('Registration failed. Please try again.');
+    }
+  }
+
+  // ── Email verification ─────────────────────────────────────────────────-
+  Future<bool> verifyEmail({
+    required String email,
+    required String otp,
+  }) async {
+    _setLoading(true);
+    try {
+      await AuthService.verifyEmail(email: email, otp: otp);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on DioException catch (e) {
+      return _fail(_extractDioError(e));
+    } catch (_) {
+      return _fail('Verification failed. Please try again.');
+    }
+  }
+
+  Future<bool> resendOtp({
+    required String email,
+  }) async {
+    _setLoading(true);
+    try {
+      await AuthService.resendOtp(email: email);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on DioException catch (e) {
+      return _fail(_extractDioError(e));
+    } catch (_) {
+      return _fail('Could not resend code. Please try again.');
     }
   }
 

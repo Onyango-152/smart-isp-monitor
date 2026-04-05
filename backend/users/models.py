@@ -31,6 +31,12 @@ class CustomUser(AbstractUser):
     )
     phone        = models.CharField(max_length=20, blank=True, null=True)
     organization = models.CharField(max_length=255, blank=True, null=True)
+    email_verified = models.BooleanField(default=False)
+    email_otp_hash = models.CharField(max_length=128, blank=True, null=True)
+    email_otp_expires_at = models.DateTimeField(null=True, blank=True)
+    email_otp_sent_at = models.DateTimeField(null=True, blank=True)
+    email_otp_send_count = models.IntegerField(default=0)
+    email_otp_attempts = models.IntegerField(default=0)
     created_at   = models.DateTimeField(auto_now_add=True)
     updated_at   = models.DateTimeField(auto_now=True)
 

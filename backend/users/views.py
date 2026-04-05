@@ -9,7 +9,14 @@ from django.contrib.auth import get_user_model
 
 from .serializers import (
     RegisterSerializer, LoginSerializer, UserProfileSerializer,
-    ChangePasswordSerializer, UserListSerializer
+    ChangePasswordSerializer, UserListSerializer,
+    VerifyEmailSerializer, ResendOtpSerializer,
+)
+from .services import (
+    issue_email_otp,
+    send_verification_email,
+    verify_email_otp,
+    can_resend_otp,
 )
 
 User = get_user_model()
@@ -31,15 +38,22 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        try:
+            otp = issue_email_otp(user)
+            send_verification_email(user, otp)
+            email_sent = True
+        except Exception:
+            email_sent = False
 
-        refresh = RefreshToken.for_user(user)
         return Response({
             'user':    UserProfileSerializer(user).data,
-            'tokens':  {
-                'refresh': str(refresh),
-                'access':  str(refresh.access_token),
-            },
-            'message': 'Account created successfully.',
+            'message': (
+                'Account created. Verification email sent.'
+                if email_sent else
+                'Account created, but verification email failed. Use resend.'
+            ),
+            'email_verification_required': True,
+            'email_verification_sent': email_sent,
         }, status=status.HTTP_201_CREATED)
 
 
@@ -74,6 +88,12 @@ class LoginView(APIView):
             return Response(
                 {'error': 'Invalid credentials.'},
                 status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        if not user.email_verified:
+            return Response(
+                {'error': 'Email not verified. Please verify to continue.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         refresh = RefreshToken.for_user(user)
@@ -236,3 +256,67 @@ class ClientListView(generics.ListAPIView):
         if user.role not in ('manager', 'admin') and not user.is_staff:
             return User.objects.none()
         return User.objects.filter(role='customer').order_by('-date_joined')
+
+
+class VerifyEmailView(APIView):
+    """
+    POST /api/users/verify-email/
+    Verifies a user's email using a 6-digit OTP.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = VerifyEmailSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data['email']
+        otp = serializer.validated_data['otp']
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'error': 'Account not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        ok, message = verify_email_otp(user, otp)
+        if not ok:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'message': message,
+            'user': UserProfileSerializer(user).data,
+        }, status=status.HTTP_200_OK)
+
+
+class ResendOtpView(APIView):
+    """
+    POST /api/users/resend-otp/
+    Sends a new email OTP, limited to 5 sends per hour.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ResendOtpSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data['email']
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'error': 'Account not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if user.email_verified:
+            return Response({'message': 'Email already verified.'}, status=status.HTTP_200_OK)
+
+        if not can_resend_otp(user):
+            return Response(
+                {'error': 'Too many requests. Please try again later.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        otp = issue_email_otp(user)
+        send_verification_email(user, otp)
+        return Response(
+            {'message': 'Verification code resent.'},
+            status=status.HTTP_200_OK,
+        )

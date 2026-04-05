@@ -6,6 +6,7 @@ import 'core/theme_provider.dart';
 import 'services/connectivity_provider.dart';
 import 'features/alerts/alert_detail_screen.dart';
 import 'features/auth/auth_provider.dart';
+import 'features/auth/email_verify_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/register_screen.dart';
 import 'features/customer/customer_shell.dart';
@@ -66,6 +67,8 @@ class SmartISPApp extends StatelessWidget {
         return _fadeRoute(settings, const LoginScreen());
       case AppConstants.registerRoute:
         return _slideRoute(settings, const RegisterScreen());
+      case AppConstants.verifyEmailRoute:
+        return _slideRoute(settings, const EmailVerifyScreen());
 
       // Role shells — fade in, no directional entry
       case AppConstants.technicianHomeRoute:

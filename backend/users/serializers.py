@@ -93,6 +93,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'username', 'email', 'first_name', 'last_name',
             'full_name', 'role', 'organization', 'phone',
+            'email_verified',
             'is_active', 'is_staff', 'date_joined', 'last_login',
         )
         read_only_fields = (
@@ -125,3 +126,12 @@ class UserListSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         return obj.get_full_name()
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp   = serializers.CharField(min_length=6, max_length=6)
+
+
+class ResendOtpSerializer(serializers.Serializer):
+    email = serializers.EmailField()

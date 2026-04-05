@@ -61,18 +61,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!mounted) return;
 
     if (success) {
-      _navigateByRole(auth.userRole);
+      Navigator.of(context).pushReplacementNamed(
+        AppConstants.verifyEmailRoute,
+        arguments: _emailCtrl.text.trim(),
+      );
     }
-  }
-
-  void _navigateByRole(String role) {
-    final route = switch (role) {
-      AppConstants.roleTechnician ||
-      AppConstants.roleAdmin      => AppConstants.technicianHomeRoute,
-      AppConstants.roleManager    => AppConstants.managerHomeRoute,
-      _                           => AppConstants.customerHomeRoute,
-    };
-    Navigator.of(context).pushReplacementNamed(route);
   }
 
   @override

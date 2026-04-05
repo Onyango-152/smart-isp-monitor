@@ -89,6 +89,27 @@ class AuthService {
     return response.data as Map<String, dynamic>;
   }
 
+  // ── Email verification ─────────────────────────────────────────────────-
+  static Future<Map<String, dynamic>> verifyEmail({
+    required String email,
+    required String otp,
+  }) async {
+    final response = await _dio.post(
+      AppConstants.verifyEmailEndpoint,
+      data: {'email': email, 'otp': otp},
+    );
+    return response.data as Map<String, dynamic>;
+  }
+
+  static Future<void> resendOtp({
+    required String email,
+  }) async {
+    await _dio.post(
+      AppConstants.resendOtpEndpoint,
+      data: {'email': email},
+    );
+  }
+
   // ── Logout (server-side token blacklist) ──────────────────────────────────
   static Future<void> revokeToken(String refreshToken) async {
     try {

@@ -9,6 +9,8 @@ urlpatterns = [
     path('register/',        views.RegisterView.as_view(),       name='register'),
     path('login/',           views.LoginView.as_view(),          name='login'),
     path('logout/',          views.LogoutView.as_view(),         name='logout'),
+    path('verify-email/',    views.VerifyEmailView.as_view(),    name='verify-email'),
+    path('resend-otp/',      views.ResendOtpView.as_view(),      name='resend-otp'),
 
     # TokenRefreshView comes from simplejwt — it accepts a refresh token
     # and returns a new access token. The Flutter app calls this

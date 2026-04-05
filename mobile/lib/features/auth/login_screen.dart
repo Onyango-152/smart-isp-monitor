@@ -320,9 +320,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
 
-          // Demo credentials hint
           const SizedBox(height: 20),
-          _buildDemoHint(),
         ],
       ),
     );
@@ -359,75 +357,6 @@ class _LoginScreenState extends State<LoginScreen>
               message,
               style: AppTextStyles.bodySmall.copyWith(
                 color: AppColors.offline,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDemoHint() {
-    return Container(
-      padding:    const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color:        AppColors.primarySurfaceOf(context),
-        borderRadius: BorderRadius.circular(10),
-        border:       Border.all(
-            color: AppColors.primary.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.info_outline_rounded,
-                  size: 14, color: AppColors.primary),
-              const SizedBox(width: 6),
-              Text(
-                'Demo Accounts',
-                style: AppTextStyles.labelBold.copyWith(
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          _demoRow(Icons.build_rounded,      'technician@isp.co.ke'),
-          _demoRow(Icons.bar_chart_rounded,  'manager@isp.co.ke'),
-          _demoRow(Icons.person_rounded,     'customer@isp.co.ke'),
-          const SizedBox(height: 4),
-          Text(
-            'Password: password123',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.primary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _demoRow(IconData icon, String email) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
-      child: Row(
-        children: [
-          Icon(icon, size: 11, color: AppColors.textSecondary),
-          const SizedBox(width: 5),
-          GestureDetector(
-            onTap: () {
-              _usernameCtrl.text = email;
-              _passwordCtrl.text = 'password123';
-              AppUtils.hapticSelect();
-            },
-            child: Text(
-              email,
-              style: AppTextStyles.mono.copyWith(
-                fontSize: 11,
-                color:    AppColors.primary,
-                decoration: TextDecoration.underline,
-                decorationColor: AppColors.primary,
               ),
             ),
           ),
