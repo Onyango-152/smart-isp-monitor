@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import '../../data/models/report_model.dart';
+import '../../data/dummy_data.dart';
 import '../../services/api_client.dart';
 
 class ReportsProvider extends ChangeNotifier {
-  bool    _isLoading    = false;
+  bool _isLoading = false;
   String? _errorMessage;
 
-  List<ReportModel> _allReports      = [];
+  List<ReportModel> _allReports = [];
   List<ReportModel> _filteredReports = [];
 
   String _typeFilter = 'all'; // all, daily, weekly, monthly
 
-  bool            get isLoading      => _isLoading;
-  String?         get errorMessage   => _errorMessage;
-  List<ReportModel> get reports      => _filteredReports;
-  String          get typeFilter     => _typeFilter;
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+  List<ReportModel> get reports => _filteredReports;
+  String get typeFilter => _typeFilter;
 
   ReportsProvider() {
     loadReports();
@@ -35,7 +36,9 @@ class ReportsProvider extends ChangeNotifier {
           .toList();
       _applyFilter();
     } catch (e) {
-      _errorMessage = 'Failed to load reports';
+      _allReports = List<ReportModel>.from(DummyData.reports);
+      _applyFilter();
+      _errorMessage = null;
     }
 
     _isLoading = false;

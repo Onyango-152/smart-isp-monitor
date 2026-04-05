@@ -4,18 +4,13 @@ import '../../core/theme.dart';
 import '../../core/widgets/nav_drawer.dart';
 import '../alerts/alerts_provider.dart';
 import '../alerts/alerts_screen.dart';
-import '../clients/clients_provider.dart';
-import '../clients/clients_screen.dart';
 import '../dashboard/dashboard_provider.dart';
 import '../dashboard/technician_dashboard.dart';
 import '../devices/device_list_screen.dart';
 import '../devices/device_provider.dart';
-import '../notifications/notifications_screen.dart';
 import '../settings/settings_screen.dart';
 import '../reports/reports_provider.dart';
-import '../reports/reports_screen.dart';
 import '../tasks/tasks_provider.dart';
-import '../tasks/tasks_screen.dart';
 
 /// TechnicianShell — root screen container for technician users.
 ///
@@ -27,13 +22,13 @@ import '../tasks/tasks_screen.dart';
 ///   ≥ 768 px  → persistent collapsible side NavDrawer, no bottom bar
 ///   < 768 px  → bottom NavigationBar + hamburger drawer
 ///
-/// Tabs:  0 Home  |  1 Devices  |  2 Clients  |  3 Alerts  |  4 Tasks  |  5 Reports  |  6 Notifications  |  7 Settings
+/// Tabs:  0 Home  |  1 Devices  |  2 Alerts  |  3 Settings
 class TechnicianShell extends StatefulWidget {
   const TechnicianShell({super.key});
 
   /// Allows child screens to switch the active tab from anywhere in
   /// the widget tree without a direct reference to the shell.
-  /// Usage: TechnicianShell.switchTab(context, 3) → Alerts tab.
+  /// Usage: TechnicianShell.switchTab(context, 2) → Alerts tab.
   static void switchTab(BuildContext context, int index) {
     context
         .findAncestorStateOfType<_TechnicianShellState>()
@@ -60,32 +55,25 @@ class _TechnicianShellState extends State<TechnicianShell> {
       providers: [
         ChangeNotifierProvider(create: (_) => DashboardProvider()),
         ChangeNotifierProvider(create: (_) => DeviceProvider()),
-        ChangeNotifierProvider(create: (_) => ClientsProvider()),
         ChangeNotifierProvider(
             create: (_) => AlertsProvider()..loadAlerts()),
-        ChangeNotifierProvider(create: (_) => TasksProvider()),
+        ChangeNotifierProvider(create: (_) => TasksProvider()..loadTasks()),
         ChangeNotifierProvider(create: (_) => ReportsProvider()),
-        ChangeNotifierProvider(create: (_) => NotificationsProvider()),
       ],
       child: Builder(
         builder: (context) {
           final isWide =
               MediaQuery.of(context).size.width >= _wideBreakpoint;
 
-          final alerts        = context.watch<AlertsProvider>();
-          final notifications = context.watch<NotificationsProvider>();
+          final alerts = context.watch<AlertsProvider>();
 
           final content = IndexedStack(
             index: _currentIndex,
             children: const [
               TechnicianDashboard(), // 0 — Home
               DeviceListScreen(),    // 1 — Devices
-              ClientsScreen(),       // 2 — Clients
-              AlertsScreen(),        // 3 — Alerts
-              TasksScreen(),         // 4 — Tasks
-              ReportsScreen(),       // 5 — Reports
-              NotificationsScreen(), // 6 — Notifications
-              SettingsScreen(),      // 7 — Settings
+              AlertsScreen(),        // 2 — Alerts
+              SettingsScreen(),      // 3 — Settings
             ],
           );
 
@@ -106,7 +94,6 @@ class _TechnicianShellState extends State<TechnicianShell> {
                       currentIndex:      _currentIndex,
                       onTabSelected:     _switchTab,
                       alertCount:        alerts.activeAlerts.length,
-                      notificationCount: notifications.unreadCount,
                       onToggle:          _toggleDrawer,
                     ),
                   ),
@@ -136,7 +123,6 @@ class _TechnicianShellState extends State<TechnicianShell> {
                 currentIndex:      _currentIndex,
                 onTabSelected:     _switchTab,
                 alertCount:        alerts.activeAlerts.length,
-                notificationCount: notifications.unreadCount,
               ),
             ),
             body:               content,
@@ -176,8 +162,8 @@ class _TechnicianShellState extends State<TechnicianShell> {
   Widget _buildNavBar(BuildContext context) {
     // Consume both providers so only the nav bar rebuilds when
     // alert or notification counts change, not the whole page.
-    return Consumer2<AlertsProvider, NotificationsProvider>(
-      builder: (context, alerts, notifications, _) {
+    return Consumer<AlertsProvider>(
+      builder: (context, alerts, _) {
         return NavigationBar(
           selectedIndex:         _currentIndex,
           onDestinationSelected: (index) =>
@@ -202,14 +188,7 @@ class _TechnicianShellState extends State<TechnicianShell> {
               label:        'Devices',
             ),
 
-            // 2. Clients
-            const NavigationDestination(
-              icon:         Icon(Icons.people_outline_rounded),
-              selectedIcon: Icon(Icons.people_rounded),
-              label:        'Clients',
-            ),
-
-            // 3. Alerts — red badge when active alerts exist
+            // 2. Alerts — red badge when active alerts exist
             NavigationDestination(
               icon: _NavBadge(
                 icon:       Icons.warning_amber_rounded,
@@ -224,38 +203,7 @@ class _TechnicianShellState extends State<TechnicianShell> {
               ),
               label: 'Alerts',
             ),
-
-            // 4. Tasks
-            const NavigationDestination(
-              icon:         Icon(Icons.task_alt_outlined),
-              selectedIcon: Icon(Icons.task_alt_rounded),
-              label:        'Tasks',
-            ),
-
-            // 5. Reports
-            const NavigationDestination(
-              icon:         Icon(Icons.assessment_outlined),
-              selectedIcon: Icon(Icons.assessment_rounded),
-              label:        'Reports',
-            ),
-
-            // 6. Notifications — blue badge when unread exist
-            NavigationDestination(
-              icon: _NavBadge(
-                icon:       Icons.notifications_outlined,
-                count:      notifications.unreadCount,
-                badgeColor: AppColors.primary,
-              ),
-              selectedIcon: _NavBadge(
-                icon:       Icons.notifications_rounded,
-                count:      notifications.unreadCount,
-                badgeColor: AppColors.primary,
-                isSelected: true,
-              ),
-              label: 'Notifications',
-            ),
-
-            // 7. Settings
+            // 3. Settings
             const NavigationDestination(
               icon:         Icon(Icons.settings_outlined),
               selectedIcon: Icon(Icons.settings_rounded),
@@ -297,7 +245,7 @@ class _NavBadge extends StatelessWidget {
             top:   -4,
             child: Container(
               constraints: const BoxConstraints(
-                  minWidth: 16, minHeight: 16),
+                  minWidth: 16, minHeight: 18),
               padding: const EdgeInsets.symmetric(
                   horizontal: 3, vertical: 1),
               decoration: BoxDecoration(
@@ -310,7 +258,7 @@ class _NavBadge extends StatelessWidget {
                   color:      Colors.white,
                   fontSize:   9,
                   fontWeight: FontWeight.bold,
-                  height:     1.2,
+                  height:     1.6,
                 ),
                 textAlign: TextAlign.center,
               ),

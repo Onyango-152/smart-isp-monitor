@@ -161,10 +161,16 @@ class _CustomerShellState extends State<CustomerShell> {
           selectedIcon: Icon(Icons.history_rounded),
           label:        'History',
         ),
-        const NavigationDestination(
-          icon:         Icon(Icons.support_agent_outlined),
-          selectedIcon: Icon(Icons.support_agent_rounded),
-          label:        'Help',
+        NavigationDestination(
+          icon: const _HelpNavIcon(
+            icon: Icons.support_agent_outlined,
+            isSelected: false,
+          ),
+          selectedIcon: const _HelpNavIcon(
+            icon: Icons.support_agent_rounded,
+            isSelected: true,
+          ),
+          label: 'Help',
         ),
         NavigationDestination(
           icon: _NavBadge(
@@ -505,6 +511,47 @@ class _NavBadge extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _HelpNavIcon — elevated help button for the bottom bar
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HelpNavIcon extends StatelessWidget {
+  final IconData icon;
+  final bool isSelected;
+
+  const _HelpNavIcon({
+    required this.icon,
+    required this.isSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.translate(
+      offset: const Offset(0, -6),
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: isSelected ? 22 : 21,
+        ),
+      ),
     );
   }
 }

@@ -8,7 +8,10 @@ import '../../core/widgets/section_header.dart';
 import '../../core/widgets/shimmer_skeleton.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../data/models/report_model.dart';
+import '../../data/models/task_model.dart';
 import 'reports_provider.dart';
+import '../tasks/tasks_provider.dart';
+import '../tasks/tasks_screen.dart';
 
 class ReportsScreen extends StatelessWidget {
   const ReportsScreen({super.key});
@@ -82,6 +85,14 @@ class ReportsScreen extends StatelessWidget {
               SliverToBoxAdapter(child: _LatencyChart(report: latest)),
           ],
 
+          // ── Tasks snapshot ─────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: Consumer<TasksProvider>(
+              builder: (context, tasks, _) =>
+                  _buildTasksSection(context, tasks),
+            ),
+          ),
+
           // ── Filter chips ────────────────────────────────────────────
           SliverToBoxAdapter(
             child: SectionHeader(
@@ -149,6 +160,257 @@ class ReportsScreen extends StatelessWidget {
         ),
         const SizedBox(width: 4),
       ],
+    );
+  }
+
+  Widget _buildTasksSection(BuildContext context, TasksProvider provider) {
+    final subtitle =
+        '${provider.enabledCount} enabled · ${provider.disabledCount} disabled';
+
+    if (provider.isLoading) {
+      return Column(
+        children: [
+          SectionHeader(
+            title: 'Tasks',
+            subtitle: subtitle,
+            icon: Icons.task_alt_rounded,
+            actionLabel: 'View All',
+            onAction: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const TasksScreen()),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(0, 6, 0, 12),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ],
+      );
+    }
+
+    if (provider.hasError) {
+      return Column(
+        children: [
+          SectionHeader(
+            title: 'Tasks',
+            subtitle: subtitle,
+            icon: Icons.task_alt_rounded,
+            actionLabel: 'Retry',
+            onAction: provider.loadTasks,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+            child: Text(
+              provider.errorMessage ?? 'Failed to load tasks.',
+              style: AppTextStyles.caption,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (provider.tasks.isEmpty) {
+      return Column(
+        children: [
+          SectionHeader(
+            title: 'Tasks',
+            subtitle: 'No monitoring tasks yet',
+            icon: Icons.task_alt_rounded,
+            actionLabel: 'Create Task',
+            onAction: () => Navigator.of(context)
+                .pushNamed(AppConstants.taskFormRoute),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+            child: Text(
+              'Create a task to start collecting scheduled health checks.',
+              style: AppTextStyles.caption,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final preview = provider.tasks.take(4).toList();
+    return Column(
+      children: [
+        SectionHeader(
+          title: 'Tasks',
+          subtitle: subtitle,
+          icon: Icons.task_alt_rounded,
+          actionLabel: 'View All',
+          onAction: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const TasksScreen()),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+          child: _buildTaskSummaryRow(provider),
+        ),
+        for (final task in preview) _TaskPreviewTile(task: task),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const TasksScreen()),
+              ),
+              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+              label: const Text('View All Tasks'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTaskSummaryRow(TasksProvider provider) {
+    return Row(
+      children: [
+        Expanded(
+          child: _TaskCountChip(
+            label: 'Enabled',
+            count: provider.enabledCount,
+            color: AppColors.online,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _TaskCountChip(
+            label: 'Disabled',
+            count: provider.disabledCount,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _TaskCountChip(
+            label: 'Failed',
+            count: provider.failedCount,
+            color: AppColors.offline,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TaskCountChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+
+  const _TaskCountChip({
+    required this.label,
+    required this.count,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              style: AppTextStyles.caption,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TaskPreviewTile extends StatelessWidget {
+  final TaskModel task;
+
+  const _TaskPreviewTile({required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = TasksProvider.statusColor(task.lastStatus);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: AppShadows.card,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              TasksProvider.taskTypeIcon(task.taskType),
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.name,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${TasksProvider.taskTypeLabel(task.taskType)} · '
+                  '${TasksProvider.formatInterval(task.intervalSecs)}',
+                  style: AppTextStyles.caption,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              task.lastStatus.toUpperCase(),
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

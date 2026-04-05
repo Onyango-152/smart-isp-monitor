@@ -16,4 +16,7 @@ urlpatterns = [
     # System health and statistics
     path('health/',                      views.SystemHealthView.as_view(),            name='health'),
     path('stats/',                       views.MonitoringStatsView.as_view(),         name='stats'),
+
+    # CSV/data export
+    path('export/',                      views.ReportExportView.as_view(),            name='export'),
 ]

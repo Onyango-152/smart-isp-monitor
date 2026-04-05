@@ -18,6 +18,7 @@ import '../../features/auth/auth_provider.dart';
 import '../../services/connectivity_provider.dart';
 import 'dashboard_provider.dart';
 import 'technician_shell.dart';
+import '../reports/reports_screen.dart';
 
 /// TechnicianDashboard — main landing screen for the technician role.
 class TechnicianDashboard extends StatefulWidget {
@@ -231,10 +232,19 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
             count: dashboard.criticalAlerts,
             onTap: () {
               AppUtils.haptic();
-              Navigator.of(context)
-                  .pushNamed(AppConstants.notificationsRoute);
+              TechnicianShell.switchTab(context, 2);
             },
           ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.assessment_outlined, color: Colors.white),
+          tooltip: 'Reports',
+          onPressed: () {
+            AppUtils.haptic();
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ReportsScreen()),
+            );
+          },
         ),
         const SizedBox(width: 8),
       ],
@@ -277,7 +287,6 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
             onAction:    () => TechnicianShell.switchTab(context, 1),
           ),
         ),
-
         dashboard.needsAttention.isEmpty
             ? SliverToBoxAdapter(
                 child: EmptyState(
@@ -357,7 +366,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
               icon:        Icons.warning_rounded,
               iconColor:   AppColors.degraded,
               actionLabel: 'See All',
-              onAction:    () => TechnicianShell.switchTab(context, 3),
+              onAction:    () => TechnicianShell.switchTab(context, 2),
             ),
           ),
           SliverList(
@@ -626,7 +635,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
             color:           AppColors.degraded,
             backgroundColor: AppColors.degradedLight,
             showBadge:       dashboard.criticalAlerts > 0,
-            onTap:           () => TechnicianShell.switchTab(context, 3),
+            onTap:           () => TechnicianShell.switchTab(context, 2),
           )),
         ],
       ),
@@ -702,7 +711,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
     return GestureDetector(
       onTap: () {
         AppUtils.haptic();
-        TechnicianShell.switchTab(context, 3);
+        TechnicianShell.switchTab(context, 2);
       },
       child: AnimatedBuilder(
         animation: _pulseAnim,

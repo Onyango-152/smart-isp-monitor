@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/utils.dart';
 import '../../data/models/device_model.dart';
@@ -37,34 +38,41 @@ class DeviceManagementProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void deactivate(int id) {
+  Future<void> deactivate(int id) async {
     final idx = _devices.indexWhere((d) => d.model.id == id);
-    if (idx >= 0) {
-      _devices[idx] = _EditableDevice(
-        model:    _devices[idx].model,
-        isActive: false,
-      );
-      notifyListeners();
-    }
+    if (idx < 0) return;
+    try {
+      await ApiClient.patch('/devices/$id/', data: {'is_active': false});
+    } catch (_) { /* optimistic — update locally even if API fails */ }
+    _devices[idx] = _EditableDevice(
+      model: _devices[idx].model, isActive: false);
+    notifyListeners();
   }
 
-  void reactivate(int id) {
+  Future<void> reactivate(int id) async {
     final idx = _devices.indexWhere((d) => d.model.id == id);
-    if (idx >= 0) {
-      _devices[idx] = _EditableDevice(
-        model:    _devices[idx].model,
-        isActive: true,
-      );
-      notifyListeners();
-    }
+    if (idx < 0) return;
+    try {
+      await ApiClient.patch('/devices/$id/', data: {'is_active': true});
+    } catch (_) {}
+    _devices[idx] = _EditableDevice(
+      model: _devices[idx].model, isActive: true);
+    notifyListeners();
   }
 
-  void saveEdit(_EditableDevice updated) {
+  Future<void> saveEdit(_EditableDevice updated) async {
     final idx = _devices.indexWhere((d) => d.model.id == updated.model.id);
-    if (idx >= 0) {
-      _devices[idx] = updated;
-      notifyListeners();
-    }
+    if (idx < 0) return;
+    try {
+      await ApiClient.patch('/devices/${updated.model.id}/', data: {
+        'name':           updated.editName,
+        'location':       updated.editLocation,
+        'snmp_community': updated.editSnmpCommunity,
+        'snmp_enabled':   updated.editSnmpEnabled,
+      });
+    } catch (_) {}
+    _devices[idx] = updated;
+    notifyListeners();
   }
 
   Future<void> load() async {
@@ -338,8 +346,13 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
 
   // ── Add device dialog ──────────────────────────────────────────────────────
 
-  void _showAddDialog(BuildContext context, DeviceManagementProvider provider) {
-    AppUtils.showSnackbar(context, 'Add Device connects to POST /api/devices/ — coming soon.');
+  void _showAddDialog(BuildContext context, DeviceManagementProvider provider) async {
+    final created = await Navigator.of(context)
+        .pushNamed(AppConstants.deviceFormRoute);
+    if (created == true && context.mounted) {
+      provider.load();
+      AppUtils.showSnackbar(context, 'Device added successfully.');
+    }
   }
 
   // ── Deactivate confirm dialog ──────────────────────────────────────────────

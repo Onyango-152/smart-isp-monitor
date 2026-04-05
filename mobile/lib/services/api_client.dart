@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:typed_data';
 
 import '../core/constants.dart';
 import '../data/models/alert_model.dart';
@@ -313,6 +314,31 @@ class ApiClient {
   static Future<void> delete(String path) async {
     try {
       await _dio.delete(path);
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  // ── Reports export ────────────────────────────────────────────────────────
+
+  /// Downloads a CSV export for the given date range from the backend.
+  /// Returns raw bytes so the caller can trigger a browser download or save.
+  static Future<Uint8List> exportReport({
+    required DateTime start,
+    required DateTime end,
+    String format = 'csv',
+  }) async {
+    try {
+      final res = await _dio.get(
+        AppConstants.reportsExportEndpoint,
+        queryParameters: {
+          'format': format,
+          'start': '${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}',
+          'end': '${end.year}-${end.month.toString().padLeft(2, '0')}-${end.day.toString().padLeft(2, '0')}',
+        },
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return Uint8List.fromList(res.data as List<int>);
     } on DioException catch (e) {
       _handleDioError(e);
     }

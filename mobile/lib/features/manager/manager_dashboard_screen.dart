@@ -1,87 +1,108 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
+
 import '../../core/theme.dart';
 import '../../core/utils.dart';
-import '../../data/models/device_model.dart';
 import '../../data/models/alert_model.dart';
+import '../../data/models/device_model.dart';
 import '../../data/models/metric_model.dart';
+import '../../features/auth/auth_provider.dart';
 import '../../services/api_client.dart';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ManagerDashboardProvider
-// ─────────────────────────────────────────────────────────────────────────────
+import 'device_management_screen.dart';
+import '../alerts/alerts_screen.dart';
 
 class ManagerDashboardProvider extends ChangeNotifier {
   bool _isLoading = false;
-  bool get isLoading => _isLoading;
-
   List<DeviceModel> _devices = [];
-  List<AlertModel>  _alerts  = [];
+  List<AlertModel> _alerts = [];
   List<MetricModel> _metrics = [];
 
+  bool get isLoading => _isLoading;
   List<DeviceModel> get devices => _devices;
-  List<AlertModel>  get alerts  => _alerts;
+  List<AlertModel> get alerts => _alerts;
   List<MetricModel> get metrics => _metrics;
 
-  int get totalDevices    => devices.length;
-  int get onlineDevices   => devices.where((d) => d.status == 'online').length;
-  int get offlineDevices  => devices.where((d) => d.status == 'offline').length;
-  int get degradedDevices => devices.where((d) => d.status == 'degraded').length;
-  int get activeAlerts    => alerts.where((a) => !a.isResolved).length;
-  int get resolvedAlerts  => alerts.where((a) =>  a.isResolved).length;
+  int get totalDevices => devices.length;
+  int get onlineDevices => devices.where((d) => d.status == 'online').length;
+  int get offlineDevices => devices.where((d) => d.status == 'offline').length;
+  int get degradedDevices =>
+      devices.where((d) => d.status == 'degraded').length;
+  int get activeAlerts => alerts.where((a) => !a.isResolved).length;
+  int get resolvedAlerts => alerts.where((a) => a.isResolved).length;
 
-  // Network uptime % — average of all device uptimes derived from metrics
   double get networkUptimePct {
     if (devices.isEmpty) return 0;
-    final online   = onlineDevices.toDouble();
-    final degraded = degradedDevices.toDouble() * 0.5; // count as half
+    final online = onlineDevices.toDouble();
+    final degraded = degradedDevices.toDouble() * 0.5;
     return ((online + degraded) / totalDevices) * 100;
   }
 
-  // MTTR — average fault resolution time in hours (from resolved alerts)
   double get mttrHours {
-    final resolved = alerts.where((a) => a.isResolved && a.resolvedAt != null);
+    final resolved =
+        alerts.where((a) => a.isResolved && a.resolvedAt != null).toList();
     if (resolved.isEmpty) return 0;
+
     double totalMinutes = 0;
-    for (final a in resolved) {
-      final start = DateTime.tryParse(a.triggeredAt);
-      final end   = DateTime.tryParse(a.resolvedAt!);
+    for (final alert in resolved) {
+      final start = DateTime.tryParse(alert.triggeredAt);
+      final end = DateTime.tryParse(alert.resolvedAt!);
       if (start != null && end != null) {
         totalMinutes += end.difference(start).inMinutes.toDouble();
       }
     }
+
     return totalMinutes / resolved.length / 60;
   }
 
-  // Dummy 7-day daily fault counts for the bar chart
-  List<int> get weeklyFaultCounts => [3, 1, 5, 2, 4, 2, activeAlerts];
+  List<int> get weeklyFaultCounts {
+    final now = DateTime.now();
+    return List.generate(7, (index) {
+      final day = now.subtract(Duration(days: 6 - index));
+      return _alerts.where((alert) {
+        final timestamp = DateTime.tryParse(alert.triggeredAt);
+        return timestamp != null &&
+            timestamp.year == day.year &&
+            timestamp.month == day.month &&
+            timestamp.day == day.day;
+      }).length;
+    });
+  }
+
+  List<String> get weeklyDayLabels {
+    final now = DateTime.now();
+    const short = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return List.generate(7, (index) {
+      if (index == 6) return 'Today';
+      final day = now.subtract(Duration(days: 6 - index));
+      return short[day.weekday - 1];
+    });
+  }
 
   Future<void> load() async {
     _isLoading = true;
     notifyListeners();
+
     try {
       final results = await Future.wait([
         ApiClient.getDevices(),
         ApiClient.getAlerts(),
         ApiClient.getMetrics(),
       ]);
+
       _devices = results[0] as List<DeviceModel>;
-      _alerts  = results[1] as List<AlertModel>;
+      _alerts = results[1] as List<AlertModel>;
       _metrics = results[2] as List<MetricModel>;
     } catch (_) {
-      // Keep stale data if available
+      // Keep stale data if available.
     }
+
     _isLoading = false;
     notifyListeners();
   }
 
   Future<void> refresh() => load();
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ManagerDashboardScreen
-// ─────────────────────────────────────────────────────────────────────────────
 
 class ManagerDashboardScreen extends StatefulWidget {
   const ManagerDashboardScreen({super.key});
@@ -99,6 +120,13 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     });
   }
 
+  String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'afternoon';
+    return 'evening';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ManagerDashboardProvider>(
@@ -107,10 +135,67 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           backgroundColor: AppColors.background,
           appBar: AppBar(
             automaticallyImplyLeading: false,
-            title: const Text('Network Overview'),
+            toolbarHeight: 64,
+            flexibleSpace: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.appBarGradientStart,
+                    AppColors.appBarGradientEnd,
+                  ],
+                ),
+              ),
+            ),
+            title: Consumer<AuthProvider>(
+              builder: (_, auth, __) {
+                final firstName =
+                    (auth.currentUser?.username ?? 'Manager').split(' ').first;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Good ${_greeting()}, $firstName',
+                      style: AppTextStyles.appBarTitle.copyWith(fontSize: 15),
+                    ),
+                    Text(
+                      'Network Operations Centre',
+                      style: AppTextStyles.appBarSubtitle
+                          .copyWith(fontSize: 11, color: Colors.white60),
+                    ),
+                  ],
+                );
+              },
+            ),
             actions: [
               IconButton(
-                icon:      const Icon(Icons.refresh),
+                icon: const Icon(Icons.router_outlined, color: Colors.white),
+                tooltip: 'Devices',
+                onPressed: () {
+                  AppUtils.haptic();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const DeviceManagementScreen(),
+                    ),
+                  );
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                tooltip: 'Alerts',
+                onPressed: () {
+                  AppUtils.haptic();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AlertsScreen(),
+                    ),
+                  );
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                tooltip: 'Refresh',
                 onPressed: provider.refresh,
               ),
             ],
@@ -122,19 +207,12 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
                     children: [
-                      // ── KPI row ────────────────────────────────────────
                       _buildKpiRow(provider),
                       const SizedBox(height: 20),
-
-                      // ── Uptime + pie side by side ──────────────────────
                       _buildUptimeAndFleet(provider),
                       const SizedBox(height: 20),
-
-                      // ── 7-day fault bar chart ──────────────────────────
                       _buildWeeklyFaultsChart(provider),
                       const SizedBox(height: 20),
-
-                      // ── Device fleet list ──────────────────────────────
                       _buildFleetList(provider),
                     ],
                   ),
@@ -144,49 +222,48 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  // ── KPI Row ───────────────────────────────────────────────────────────────
-
-  Widget _buildKpiRow(ManagerDashboardProvider p) {
+  Widget _buildKpiRow(ManagerDashboardProvider provider) {
     return Row(
       children: [
         _KpiCard(
           label: 'Uptime',
-          value: '${p.networkUptimePct.toStringAsFixed(1)}%',
-          icon:  Icons.timeline,
-          color: p.networkUptimePct >= 90 ? AppColors.online : AppColors.severityMedium,
+          value: '${provider.networkUptimePct.toStringAsFixed(1)}%',
+          icon: Icons.timeline,
+          color: provider.networkUptimePct >= 90
+              ? AppColors.online
+              : AppColors.severityMedium,
         ),
         const SizedBox(width: 10),
         _KpiCard(
           label: 'Open Alerts',
-          value: p.activeAlerts.toString(),
-          icon:  Icons.notifications_active,
-          color: p.activeAlerts > 0 ? AppColors.severityCritical : AppColors.online,
+          value: provider.activeAlerts.toString(),
+          icon: Icons.notifications_active,
+          color: provider.activeAlerts > 0
+              ? AppColors.severityCritical
+              : AppColors.online,
         ),
         const SizedBox(width: 10),
         _KpiCard(
           label: 'MTTR',
-          value: '${p.mttrHours.toStringAsFixed(1)}h',
-          icon:  Icons.timer_outlined,
+          value: '${provider.mttrHours.toStringAsFixed(1)}h',
+          icon: Icons.timer_outlined,
           color: AppColors.primaryLight,
         ),
         const SizedBox(width: 10),
         _KpiCard(
           label: 'Devices',
-          value: p.totalDevices.toString(),
-          icon:  Icons.router,
+          value: provider.totalDevices.toString(),
+          icon: Icons.router,
           color: AppColors.primaryDark,
         ),
       ],
     );
   }
 
-  // ── Uptime ring + fleet pie ────────────────────────────────────────────────
-
-  Widget _buildUptimeAndFleet(ManagerDashboardProvider p) {
+  Widget _buildUptimeAndFleet(ManagerDashboardProvider provider) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Uptime ring
         Expanded(
           child: _SectionCard(
             title: 'Network Uptime',
@@ -198,19 +275,19 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                   PieChart(
                     PieChartData(
                       startDegreeOffset: -90,
-                      sectionsSpace:     0,
+                      sectionsSpace: 0,
                       centerSpaceRadius: 46,
                       sections: [
                         PieChartSectionData(
-                          value:     p.networkUptimePct,
-                          color:     AppColors.online,
-                          radius:    18,
+                          value: provider.networkUptimePct,
+                          color: AppColors.online,
+                          radius: 18,
                           showTitle: false,
                         ),
                         PieChartSectionData(
-                          value:     100 - p.networkUptimePct,
-                          color:     AppColors.divider,
-                          radius:    18,
+                          value: 100 - provider.networkUptimePct,
+                          color: AppColors.divider,
+                          radius: 18,
                           showTitle: false,
                         ),
                       ],
@@ -220,16 +297,17 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        '${p.networkUptimePct.toStringAsFixed(1)}%',
+                        '${provider.networkUptimePct.toStringAsFixed(1)}%',
                         style: const TextStyle(
-                          fontSize:   22,
+                          fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          color:      AppColors.textPrimary,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const Text(
                         'uptime',
-                        style: TextStyle(fontSize: 11, color: AppColors.textHint),
+                        style:
+                            TextStyle(fontSize: 11, color: AppColors.textHint),
                       ),
                     ],
                   ),
@@ -239,8 +317,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           ),
         ),
         const SizedBox(width: 12),
-
-        // Fleet status pie
         Expanded(
           child: _SectionCard(
             title: 'Fleet Status',
@@ -251,28 +327,28 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                   Expanded(
                     child: PieChart(
                       PieChartData(
-                        sectionsSpace:     2,
+                        sectionsSpace: 2,
                         centerSpaceRadius: 24,
                         sections: [
-                          if (p.onlineDevices > 0)
+                          if (provider.onlineDevices > 0)
                             PieChartSectionData(
-                              value:     p.onlineDevices.toDouble(),
-                              color:     AppColors.online,
-                              radius:    30,
+                              value: provider.onlineDevices.toDouble(),
+                              color: AppColors.online,
+                              radius: 30,
                               showTitle: false,
                             ),
-                          if (p.degradedDevices > 0)
+                          if (provider.degradedDevices > 0)
                             PieChartSectionData(
-                              value:     p.degradedDevices.toDouble(),
-                              color:     AppColors.severityMedium,
-                              radius:    30,
+                              value: provider.degradedDevices.toDouble(),
+                              color: AppColors.severityMedium,
+                              radius: 30,
                               showTitle: false,
                             ),
-                          if (p.offlineDevices > 0)
+                          if (provider.offlineDevices > 0)
                             PieChartSectionData(
-                              value:     p.offlineDevices.toDouble(),
-                              color:     AppColors.severityCritical,
-                              radius:    30,
+                              value: provider.offlineDevices.toDouble(),
+                              color: AppColors.severityCritical,
+                              radius: 30,
                               showTitle: false,
                             ),
                         ],
@@ -284,11 +360,20 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _LegendDot(color: AppColors.online,           label: 'Online   ${p.onlineDevices}'),
+                      _LegendDot(
+                        color: AppColors.online,
+                        label: 'Online   ${provider.onlineDevices}',
+                      ),
                       const SizedBox(height: 6),
-                      _LegendDot(color: AppColors.severityMedium,   label: 'Degraded ${p.degradedDevices}'),
+                      _LegendDot(
+                        color: AppColors.severityMedium,
+                        label: 'Degraded ${provider.degradedDevices}',
+                      ),
                       const SizedBox(height: 6),
-                      _LegendDot(color: AppColors.severityCritical, label: 'Offline  ${p.offlineDevices}'),
+                      _LegendDot(
+                        color: AppColors.severityCritical,
+                        label: 'Offline  ${provider.offlineDevices}',
+                      ),
                     ],
                   ),
                 ],
@@ -300,67 +385,74 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  // ── Weekly faults bar chart ───────────────────────────────────────────────
-
-  Widget _buildWeeklyFaultsChart(ManagerDashboardProvider p) {
-    final days   = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Today'];
-    final counts = p.weeklyFaultCounts;
-    final maxY   = (counts.reduce((a, b) => a > b ? a : b) + 2).toDouble();
+  Widget _buildWeeklyFaultsChart(ManagerDashboardProvider provider) {
+    final days = provider.weeklyDayLabels;
+    final counts = provider.weeklyFaultCounts;
+    final maxCount = counts.fold<int>(0, (a, b) => a > b ? a : b);
+    final maxY = (maxCount + 2).toDouble();
 
     return _SectionCard(
-      title: 'Faults — Last 7 Days',
+      title: 'Faults - Last 7 Days',
       child: SizedBox(
         height: 180,
         child: BarChart(
           BarChartData(
-            maxY:            maxY,
-            gridData:        FlGridData(
-              show:              true,
-              drawVerticalLine:  false,
-              getDrawingHorizontalLine: (_) => FlLine(
-                color:       AppColors.divider,
+            maxY: maxY,
+            gridData: FlGridData(
+              show: true,
+              drawVerticalLine: false,
+              getDrawingHorizontalLine: (_) => const FlLine(
+                color: AppColors.divider,
                 strokeWidth: 1,
               ),
             ),
-            borderData:      FlBorderData(show: false),
+            borderData: FlBorderData(show: false),
             titlesData: FlTitlesData(
-              leftTitles:   AxisTitles(
+              leftTitles: AxisTitles(
                 sideTitles: SideTitles(
-                  showTitles:    true,
-                  reservedSize:  28,
-                  interval:      2,
-                  getTitlesWidget: (v, _) => Text(
-                    v.toInt().toString(),
-                    style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+                  showTitles: true,
+                  reservedSize: 28,
+                  interval: 2,
+                  getTitlesWidget: (value, _) => Text(
+                    value.toInt().toString(),
+                    style: const TextStyle(
+                        fontSize: 10, color: AppColors.textHint),
                   ),
                 ),
               ),
-              rightTitles:  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              topTitles:    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles:
+                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              topTitles:
+                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
-                  showTitles:    true,
-                  reservedSize:  24,
-                  getTitlesWidget: (v, _) {
-                    final i = v.toInt();
-                    if (i < 0 || i >= days.length) return const SizedBox.shrink();
+                  showTitles: true,
+                  reservedSize: 24,
+                  getTitlesWidget: (value, _) {
+                    final index = value.toInt();
+                    if (index < 0 || index >= days.length) {
+                      return const SizedBox.shrink();
+                    }
                     return Text(
-                      days[i],
-                      style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+                      days[index],
+                      style: const TextStyle(
+                          fontSize: 10, color: AppColors.textHint),
                     );
                   },
                 ),
               ),
             ),
-            barGroups: List.generate(counts.length, (i) {
-              final isToday = i == counts.length - 1;
+            barGroups: List.generate(counts.length, (index) {
+              final isToday = index == counts.length - 1;
               return BarChartGroupData(
-                x: i,
+                x: index,
                 barRods: [
                   BarChartRodData(
-                    toY:          counts[i].toDouble(),
-                    color:        isToday ? AppColors.primary : AppColors.primaryLight.withOpacity(0.6),
-                    width:        22,
+                    toY: counts[index].toDouble(),
+                    color: isToday
+                        ? AppColors.primary
+                        : AppColors.primaryLight.withValues(alpha: 0.6),
+                    width: 22,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ],
@@ -372,39 +464,73 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     );
   }
 
-  // ── Device fleet list ─────────────────────────────────────────────────────
+  Widget _buildFleetList(ManagerDashboardProvider provider) {
+    final preview = provider.devices.take(10).toList();
+    final extra = provider.devices.length - preview.length;
 
-  Widget _buildFleetList(ManagerDashboardProvider p) {
     return _SectionCard(
       title: 'Device Fleet',
-      child: Column(
-        children: p.devices.map((d) {
-          final metric = _metricFor(d.id, p.metrics);
-          return _FleetRow(device: d, metric: metric);
-        }).toList(),
-      ),
+      child: preview.isEmpty
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'No devices available.',
+                style: TextStyle(fontSize: 12, color: AppColors.textHint),
+              ),
+            )
+          : Column(
+              children: [
+                ...preview.map(
+                  (device) => _FleetRow(
+                    device: device,
+                    metric: _metricFor(device.id, provider.metrics),
+                  ),
+                ),
+                if (extra > 0) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        size: 14,
+                        color: AppColors.textHint,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '+$extra more - open Devices tab to see all',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textHint),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
     );
   }
 
   MetricModel? _metricFor(int deviceId, List<MetricModel> metrics) {
     try {
-      return metrics.firstWhere((m) => m.deviceId == deviceId);
+      return metrics.firstWhere((metric) => metric.deviceId == deviceId);
     } catch (_) {
       return null;
     }
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper widgets
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _KpiCard extends StatelessWidget {
-  final String   label;
-  final String   value;
+  const _KpiCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
   final IconData icon;
-  final Color    color;
-  const _KpiCard({required this.label, required this.value, required this.icon, required this.color});
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -412,18 +538,30 @@ class _KpiCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color:        AppColors.surface,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04), blurRadius: 6),
+          ],
         ),
         child: Column(
           children: [
             Icon(icon, color: color, size: 20),
             const SizedBox(height: 6),
-            Text(value, style: TextStyle(
-              fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-            Text(label, style: const TextStyle(
-              fontSize: 10, color: AppColors.textHint), textAlign: TextAlign.center),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -432,24 +570,33 @@ class _KpiCard extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.title, required this.child});
+
   final String title;
   final Widget child;
-  const _SectionCard({required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:    const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color:        AppColors.surface,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(
-            fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 12),
           child,
         ],
@@ -459,65 +606,94 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _LegendDot extends StatelessWidget {
-  final Color  color;
-  final String label;
   const _LegendDot({required this.color, required this.label});
+
+  final Color color;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 10, height: 10,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+        ),
       ],
     );
   }
 }
 
 class _FleetRow extends StatelessWidget {
-  final DeviceModel  device;
-  final MetricModel? metric;
   const _FleetRow({required this.device, this.metric});
+
+  final DeviceModel device;
+  final MetricModel? metric;
 
   @override
   Widget build(BuildContext context) {
     final statusColor = AppUtils.statusColor(device.status);
-    final latency     = metric?.latencyMs != null
+    final latency = metric?.latencyMs != null
         ? '${metric!.latencyMs!.toStringAsFixed(0)} ms'
         : '--';
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.divider, width: 0.5)),
+      decoration: const BoxDecoration(
+        border:
+            Border(bottom: BorderSide(color: AppColors.divider, width: 0.5)),
       ),
       child: Row(
         children: [
           Container(
-            width: 10, height: 10,
-            decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+            width: 10,
+            height: 10,
+            decoration:
+                BoxDecoration(color: statusColor, shape: BoxShape.circle),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(device.name, style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                Text(device.location ?? device.ipAddress,
-                    style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+                Text(
+                  device.name,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  device.location ?? device.ipAddress,
+                  style:
+                      const TextStyle(fontSize: 11, color: AppColors.textHint),
+                ),
               ],
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(latency, style: const TextStyle(
-                fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-              const Text('latency', style: TextStyle(fontSize: 10, color: AppColors.textHint)),
+              Text(
+                latency,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Text(
+                'latency',
+                style: TextStyle(fontSize: 10, color: AppColors.textHint),
+              ),
             ],
           ),
         ],

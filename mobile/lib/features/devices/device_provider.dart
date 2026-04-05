@@ -3,6 +3,7 @@ import '../../core/constants.dart';
 import '../../core/utils.dart';
 import '../../data/models/device_model.dart';
 import '../../data/models/metric_model.dart';
+import '../../data/dummy_data.dart';
 import '../../services/api_client.dart';
 import '../../services/database_helper.dart';
 
@@ -17,45 +18,42 @@ import '../../services/database_helper.dart';
 /// On integration day replace DummyData calls in loadDevices() with
 /// real API calls. The provider interface stays the same.
 class DeviceProvider extends ChangeNotifier {
-
   // ── State ─────────────────────────────────────────────────────────────────
-  bool    _isLoading    = false;
+  bool _isLoading = false;
   String? _errorMessage;
 
   // ── Data ──────────────────────────────────────────────────────────────────
-  List<DeviceModel> _allDevices      = [];
+  List<DeviceModel> _allDevices = [];
   List<DeviceModel> _filteredDevices = [];
 
   // ── Filter state ──────────────────────────────────────────────────────────
-  String _searchQuery  = '';
+  String _searchQuery = '';
   String _statusFilter = 'all';
-  String _typeFilter   = 'all';
+  String _typeFilter = 'all';
 
   // ── Getters — state ───────────────────────────────────────────────────────
-  bool    get isLoading    => _isLoading;
-  bool    get hasError     => _errorMessage != null;
+  bool get isLoading => _isLoading;
+  bool get hasError => _errorMessage != null;
   String? get errorMessage => _errorMessage;
 
   // ── Getters — data ────────────────────────────────────────────────────────
-  List<DeviceModel> get devices       => _filteredDevices;
-  int               get totalCount    => _allDevices.length;
-  int               get filteredCount => _filteredDevices.length;
+  List<DeviceModel> get devices => _filteredDevices;
+  int get totalCount => _allDevices.length;
+  int get filteredCount => _filteredDevices.length;
 
   /// True when any filter or search is active.
   bool get hasActiveFilters =>
-      _searchQuery.isNotEmpty ||
-      _statusFilter != 'all'  ||
-      _typeFilter   != 'all';
+      _searchQuery.isNotEmpty || _statusFilter != 'all' || _typeFilter != 'all';
 
   // ── Getters — filter values ───────────────────────────────────────────────
-  String get searchQuery  => _searchQuery;
+  String get searchQuery => _searchQuery;
   String get statusFilter => _statusFilter;
-  String get typeFilter   => _typeFilter;
+  String get typeFilter => _typeFilter;
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
   Future<void> loadDevices() async {
-    _isLoading    = true;
+    _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -67,7 +65,7 @@ class DeviceProvider extends ChangeNotifier {
         _applyFilters();
         notifyListeners();
       }
-    } catch (_) { /* cache miss — no-op */ }
+    } catch (_) {/* cache miss — no-op */}
 
     try {
       _allDevices = await ApiClient.getDevices();
@@ -76,7 +74,10 @@ class DeviceProvider extends ChangeNotifier {
       await DatabaseHelper.instance.cacheDevices(_allDevices);
     } catch (e) {
       if (_allDevices.isEmpty) {
-        _errorMessage = 'Failed to load devices. Please try again.';
+        _allDevices = List<DeviceModel>.from(DummyData.devices);
+        _latestMetrics = List<MetricModel>.from(DummyData.latestMetrics);
+        _applyFilters();
+        _errorMessage = null;
       }
     }
 
@@ -107,9 +108,9 @@ class DeviceProvider extends ChangeNotifier {
   }
 
   void clearFilters() {
-    _searchQuery  = '';
+    _searchQuery = '';
     _statusFilter = 'all';
-    _typeFilter   = 'all';
+    _typeFilter = 'all';
     _applyFilters();
     notifyListeners();
   }
@@ -119,9 +120,7 @@ class DeviceProvider extends ChangeNotifier {
   /// Returns the latest metric snapshot for [deviceId], or null.
   /// Uses the cached metrics fetched alongside devices.
   MetricModel? getLatestMetric(int deviceId) =>
-      _latestMetrics
-          .where((m) => m.deviceId == deviceId)
-          .firstOrNull;
+      _latestMetrics.where((m) => m.deviceId == deviceId).firstOrNull;
 
   List<MetricModel> _latestMetrics = [];
 
@@ -144,9 +143,11 @@ class DeviceProvider extends ChangeNotifier {
   Future<bool> updateDevice(DeviceModel updated) async {
     try {
       await Future.delayed(const Duration(milliseconds: 400));
-      _allDevices = _allDevices.map(
-        (d) => d.id == updated.id ? updated : d,
-      ).toList();
+      _allDevices = _allDevices
+          .map(
+            (d) => d.id == updated.id ? updated : d,
+          )
+          .toList();
       _applyFilters();
       notifyListeners();
       await DatabaseHelper.instance.upsertDevice(updated);
@@ -179,41 +180,44 @@ class DeviceProvider extends ChangeNotifier {
 
   void _applyFilters() {
     _filteredDevices = _allDevices.where((device) {
-
       // ── Text search ───────────────────────────────────────────────
       // Matches name, IP address, location, and human-readable type label
       // (e.g. "access point" matches deviceType 'access_point')
-      final q            = _searchQuery;
-      final typeLabel    = AppUtils.deviceTypeLabel(device.deviceType)
-          .toLowerCase();
+      final q = _searchQuery;
+      final typeLabel =
+          AppUtils.deviceTypeLabel(device.deviceType).toLowerCase();
       final matchesSearch = q.isEmpty ||
-          device.name     .toLowerCase().contains(q) ||
+          device.name.toLowerCase().contains(q) ||
           device.ipAddress.toLowerCase().contains(q) ||
           (device.location?.toLowerCase().contains(q) ?? false) ||
           typeLabel.contains(q);
 
       // ── Status filter ─────────────────────────────────────────────
-      final matchesStatus = _statusFilter == 'all' ||
-          device.status == _statusFilter;
+      final matchesStatus =
+          _statusFilter == 'all' || device.status == _statusFilter;
 
       // ── Type filter ───────────────────────────────────────────────
-      final matchesType = _typeFilter == 'all' ||
-          device.deviceType == _typeFilter;
+      final matchesType =
+          _typeFilter == 'all' || device.deviceType == _typeFilter;
 
       return matchesSearch && matchesStatus && matchesType;
     }).toList()
       // Sort: offline → degraded → online (problem devices surface first)
-      ..sort((a, b) => _statusPriority(a.status)
-          .compareTo(_statusPriority(b.status)));
+      ..sort((a, b) =>
+          _statusPriority(a.status).compareTo(_statusPriority(b.status)));
   }
 
   /// Lower number = shown first.
   int _statusPriority(String status) {
     switch (status) {
-      case AppConstants.statusOffline:  return 0;
-      case AppConstants.statusDegraded: return 1;
-      case AppConstants.statusOnline:   return 2;
-      default:                          return 3;
+      case AppConstants.statusOffline:
+        return 0;
+      case AppConstants.statusDegraded:
+        return 1;
+      case AppConstants.statusOnline:
+        return 2;
+      default:
+        return 3;
     }
   }
 }

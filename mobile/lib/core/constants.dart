@@ -28,6 +28,7 @@ class AppConstants {
   static const String clientsEndpoint         = '/users/clients/';
   static const String dashboardEndpoint       = '/dashboard/summary/';
   static const String customerDashboardEndpoint = '/dashboard/customer/';
+  static const String reportsExportEndpoint   = '/monitoring/export/';
 
   // ── Local Storage Keys ───────────────────────────────────────────────────
   static const String tokenKey        = 'access_token';

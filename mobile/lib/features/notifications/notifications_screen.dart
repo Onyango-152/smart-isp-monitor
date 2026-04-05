@@ -4,6 +4,7 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/utils.dart';
 import '../../core/widgets/empty_state.dart';
+import '../../data/dummy_data.dart';
 import '../../services/api_client.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -15,14 +16,14 @@ import '../../services/api_client.dart';
 enum NotificationType { alert, resolved, info, system }
 
 class NotificationItem {
-  final int              id;
-  final String           title;
-  final String           body;
+  final int id;
+  final String title;
+  final String body;
   final NotificationType type;
-  final String           severity;   // critical / high / medium / low / info
-  final String           timestamp;
-  final String?          deviceName;
-  bool                   isRead;
+  final String severity; // critical / high / medium / low / info
+  final String timestamp;
+  final String? deviceName;
+  bool isRead;
 
   NotificationItem({
     required this.id,
@@ -41,35 +42,42 @@ class NotificationItem {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class NotificationsProvider extends ChangeNotifier {
-
   // ── State ──────────────────────────────────────────────────────────────────
-  bool    _isLoading    = false;
+  bool _isLoading = false;
   String? _errorMessage;
-  String  _filter       = 'all';
+  String _filter = 'all';
 
   // ── Data ───────────────────────────────────────────────────────────────────
   List<NotificationItem> _all = [];
 
   // ── Getters ────────────────────────────────────────────────────────────────
-  bool    get isLoading    => _isLoading;
-  bool    get hasError     => _errorMessage != null;
+  bool get isLoading => _isLoading;
+  bool get hasError => _errorMessage != null;
   String? get errorMessage => _errorMessage;
-  String  get filter       => _filter;
+  String get filter => _filter;
 
-  List<NotificationItem> get all         => _all;
-  List<NotificationItem> get unread      => _all.where((n) => !n.isRead).toList();
-  int                    get unreadCount => unread.length;
+  List<NotificationItem> get all => _all;
+  List<NotificationItem> get unread => _all.where((n) => !n.isRead).toList();
+  int get unreadCount => unread.length;
 
   List<NotificationItem> get filtered {
     switch (_filter) {
-      case 'unread':  return _all.where((n) => !n.isRead).toList();
-      case 'alerts':  return _all.where((n) =>
-          n.type == NotificationType.alert ||
-          n.type == NotificationType.resolved).toList();
-      case 'system':  return _all.where((n) =>
-          n.type == NotificationType.system ||
-          n.type == NotificationType.info).toList();
-      default:        return _all;
+      case 'unread':
+        return _all.where((n) => !n.isRead).toList();
+      case 'alerts':
+        return _all
+            .where((n) =>
+                n.type == NotificationType.alert ||
+                n.type == NotificationType.resolved)
+            .toList();
+      case 'system':
+        return _all
+            .where((n) =>
+                n.type == NotificationType.system ||
+                n.type == NotificationType.info)
+            .toList();
+      default:
+        return _all;
     }
   }
 
@@ -81,7 +89,7 @@ class NotificationsProvider extends ChangeNotifier {
   // ── Load ───────────────────────────────────────────────────────────────────
 
   Future<void> load() async {
-    _isLoading    = true;
+    _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -91,25 +99,50 @@ class NotificationsProvider extends ChangeNotifier {
 
       _all = list.map((n) {
         final typeStr = n['type'] as String? ?? 'info';
-        final type = typeStr == 'alert'    ? NotificationType.alert
-                   : typeStr == 'resolved' ? NotificationType.resolved
-                   : typeStr == 'system'   ? NotificationType.system
-                   :                        NotificationType.info;
+        final type = typeStr == 'alert'
+            ? NotificationType.alert
+            : typeStr == 'resolved'
+                ? NotificationType.resolved
+                : typeStr == 'system'
+                    ? NotificationType.system
+                    : NotificationType.info;
         return NotificationItem(
-          id:         n['id']          as int,
-          title:      n['title']       as String,
-          body:       n['body']        as String,
-          type:       type,
-          severity:   n['severity']    as String? ?? 'info',
-          timestamp:  n['created_at']  as String,
+          id: n['id'] as int,
+          title: n['title'] as String,
+          body: n['body'] as String,
+          type: type,
+          severity: n['severity'] as String? ?? 'info',
+          timestamp: n['created_at'] as String,
           deviceName: n['device_name'] as String?,
-          isRead:     n['is_read']     as bool? ?? false,
+          isRead: n['is_read'] as bool? ?? false,
         );
       }).toList()
-        ..sort((a, b) => DateTime.parse(b.timestamp)
-            .compareTo(DateTime.parse(a.timestamp)));
+        ..sort((a, b) =>
+            DateTime.parse(b.timestamp).compareTo(DateTime.parse(a.timestamp)));
     } catch (e) {
-      _errorMessage = 'Failed to load notifications. Please try again.';
+      _all = DummyData.notifications.map((n) {
+        final typeStr = (n['type'] as String? ?? 'info').toLowerCase();
+        final type = typeStr == 'alert'
+            ? NotificationType.alert
+            : typeStr == 'resolved'
+                ? NotificationType.resolved
+                : typeStr == 'system'
+                    ? NotificationType.system
+                    : NotificationType.info;
+        return NotificationItem(
+          id: n['id'] as int,
+          title: n['title'] as String,
+          body: n['body'] as String,
+          type: type,
+          severity: n['severity'] as String? ?? 'info',
+          timestamp: n['createdAt'] as String,
+          deviceName: n['deviceName'] as String?,
+          isRead: n['read'] as bool? ?? false,
+        );
+      }).toList()
+        ..sort((a, b) =>
+            DateTime.parse(b.timestamp).compareTo(DateTime.parse(a.timestamp)));
+      _errorMessage = null;
     }
 
     _isLoading = false;
@@ -127,7 +160,9 @@ class NotificationsProvider extends ChangeNotifier {
   }
 
   void markAllRead() {
-    for (final n in _all) { n.isRead = true; }
+    for (final n in _all) {
+      n.isRead = true;
+    }
     notifyListeners();
   }
 
@@ -154,7 +189,6 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-
   @override
   void initState() {
     super.initState();
@@ -169,19 +203,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: _buildAppBar(),
       body: Consumer<NotificationsProvider>(
         builder: (context, provider, _) {
-
           if (provider.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (provider.hasError) {
             return EmptyState(
-              icon:        Icons.cloud_off_rounded,
-              title:       'Could Not Load Notifications',
-              message:     provider.errorMessage!,
-              color:       AppColors.offline,
+              icon: Icons.cloud_off_rounded,
+              title: 'Could Not Load Notifications',
+              message: provider.errorMessage!,
+              color: AppColors.offline,
               actionLabel: 'Retry',
-              onAction:    provider.load,
+              onAction: provider.load,
             );
           }
 
@@ -205,8 +238,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       flexibleSpace: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin:  Alignment.topLeft,
-            end:    Alignment.bottomRight,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [
               AppColors.appBarGradientStart,
               AppColors.appBarGradientEnd,
@@ -217,22 +250,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       title: Consumer<NotificationsProvider>(
         builder: (_, provider, __) => Row(
           children: [
-            const Text('Notifications',
-                style: TextStyle(color: Colors.white)),
+            const Text('Notifications', style: TextStyle(color: Colors.white)),
             if (provider.unreadCount > 0) ...[
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color:        AppColors.offline,
+                  color: AppColors.offline,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   '${provider.unreadCount}',
                   style: const TextStyle(
-                    color:      Colors.white,
-                    fontSize:   12,
+                    color: Colors.white,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -252,8 +283,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     provider.markAllRead();
                   },
                   child: const Text('Mark all read',
-                      style: TextStyle(
-                          color: Colors.white70, fontSize: 13)),
+                      style: TextStyle(color: Colors.white70, fontSize: 13)),
                 ),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert, color: Colors.white),
@@ -286,7 +316,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildFilterRow(NotificationsProvider provider) {
     const filters = [
-      ('all',    'All'),
+      ('all', 'All'),
       ('unread', 'Unread'),
       ('alerts', 'Alerts'),
       ('system', 'System'),
@@ -296,15 +326,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       child: SizedBox(
         height: 46,
         child: ListView(
-          padding:         const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           scrollDirection: Axis.horizontal,
           children: filters.map((f) {
-            final key        = f.$1;
-            final label      = f.$2;
+            final key = f.$1;
+            final label = f.$2;
             final isSelected = provider.filter == key;
             return Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 4, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
               child: GestureDetector(
                 onTap: () {
                   AppUtils.hapticSelect();
@@ -312,27 +341,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 13, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
                   decoration: BoxDecoration(
-                    color:        isSelected
-                        ? AppColors.primary.withOpacity(0.1)
+                    color: isSelected
+                        ? AppColors.primary.withValues(alpha: 0.1)
                         : Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isSelected
-                          ? AppColors.primary
-                          : AppColors.divider,
+                      color: isSelected ? AppColors.primary : AppColors.divider,
                       width: isSelected ? 1.5 : 1.0,
                     ),
                   ),
                   child: Text(
                     label,
                     style: TextStyle(
-                      fontSize:   12,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                      fontSize: 12,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w500,
                       color: isSelected
                           ? AppColors.primary
                           : AppColors.textSecondary,
@@ -353,33 +379,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (provider.filtered.isEmpty) {
       final noData = provider.all.isEmpty;
       return EmptyState(
-        icon:    Icons.notifications_off_rounded,
-        title:   noData ? 'No Notifications' : 'Nothing to Show',
+        icon: Icons.notifications_off_rounded,
+        title: noData ? 'No Notifications' : 'Nothing to Show',
         message: provider.filter == 'unread'
             ? 'You\'re all caught up. No unread notifications.'
             : noData
                 ? 'Notifications will appear here when events occur.'
                 : 'No notifications match this filter.',
         actionLabel: provider.filter != 'all' ? 'Show All' : null,
-        onAction:    provider.filter != 'all'
-            ? () => provider.setFilter('all')
-            : null,
+        onAction:
+            provider.filter != 'all' ? () => provider.setFilter('all') : null,
       );
     }
 
     return RefreshIndicator(
       onRefresh: provider.load,
-      color:     AppColors.primary,
+      color: AppColors.primary,
       child: ListView.separated(
-        padding:          const EdgeInsets.fromLTRB(0, 8, 0, 80),
-        itemCount:        provider.filtered.length,
-        separatorBuilder: (_, __) =>
-            const Divider(height: 1, indent: 16),
+        padding: const EdgeInsets.fromLTRB(0, 8, 0, 80),
+        itemCount: provider.filtered.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, indent: 16),
         itemBuilder: (context, index) {
           final item = provider.filtered[index];
           return _NotificationTile(
-            item:      item,
-            onTap:     () => provider.markRead(item.id),
+            item: item,
+            onTap: () => provider.markRead(item.id),
             onDismiss: () => provider.dismiss(item.id),
           );
         },
@@ -389,12 +413,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   // ── Confirm dialog ─────────────────────────────────────────────────────────
 
-  void _showClearConfirm(
-      BuildContext context, NotificationsProvider provider) {
+  void _showClearConfirm(BuildContext context, NotificationsProvider provider) {
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        title:   const Text('Clear all notifications?'),
+        title: const Text('Clear all notifications?'),
         content: const Text(
           'This will remove all notifications from this list. '
           'It cannot be undone.',
@@ -402,7 +425,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child:     const Text('Cancel'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
@@ -410,8 +433,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               provider.clearAll();
               Navigator.of(context).pop();
             },
-            style: TextButton.styleFrom(
-                foregroundColor: AppColors.offline),
+            style: TextButton.styleFrom(foregroundColor: AppColors.offline),
             child: const Text('Clear All'),
           ),
         ],
@@ -426,8 +448,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
 class _NotificationTile extends StatelessWidget {
   final NotificationItem item;
-  final VoidCallback     onTap;
-  final VoidCallback     onDismiss;
+  final VoidCallback onTap;
+  final VoidCallback onDismiss;
 
   const _NotificationTile({
     required this.item,
@@ -438,7 +460,7 @@ class _NotificationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dismissible(
-      key:       Key('notif_${item.id}'),
+      key: Key('notif_${item.id}'),
       direction: DismissDirection.endToStart,
       onDismissed: (_) {
         AppUtils.hapticSelect();
@@ -446,18 +468,17 @@ class _NotificationTile extends StatelessWidget {
       },
       background: Container(
         alignment: Alignment.centerRight,
-        color:     AppColors.offline,
-        padding:   const EdgeInsets.only(right: 20),
+        color: AppColors.offline,
+        padding: const EdgeInsets.only(right: 20),
         child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.delete_outline_rounded,
-                color: Colors.white, size: 22),
+            Icon(Icons.delete_outline_rounded, color: Colors.white, size: 22),
             SizedBox(height: 3),
             Text('Dismiss',
                 style: TextStyle(
-                    color:      Colors.white,
-                    fontSize:   11,
+                    color: Colors.white,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600)),
           ],
         ),
@@ -476,11 +497,9 @@ class _NotificationTile extends StatelessWidget {
             border: item.isRead
                 ? null
                 : const Border(
-                    left: BorderSide(
-                        color: AppColors.primary, width: 3)),
+                    left: BorderSide(color: AppColors.primary, width: 3)),
           ),
-          padding: EdgeInsets.fromLTRB(
-              item.isRead ? 16 : 13, 14, 16, 14),
+          padding: EdgeInsets.fromLTRB(item.isRead ? 16 : 13, 14, 16, 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -505,7 +524,8 @@ class _NotificationTile extends StatelessWidget {
                         ),
                         if (!item.isRead)
                           Container(
-                            width:  8, height: 8,
+                            width: 8,
+                            height: 8,
                             decoration: const BoxDecoration(
                               color: AppColors.primary,
                               shape: BoxShape.circle,
@@ -531,8 +551,7 @@ class _NotificationTile extends StatelessWidget {
                           const Icon(Icons.router_rounded,
                               size: 11, color: AppColors.textHint),
                           const SizedBox(width: 3),
-                          Text(item.deviceName!,
-                              style: AppTextStyles.caption),
+                          Text(item.deviceName!, style: AppTextStyles.caption),
                           const SizedBox(width: 8),
                         ],
                         const Icon(Icons.access_time_rounded,
@@ -553,14 +572,14 @@ class _NotificationTile extends StatelessWidget {
   }
 
   Widget _buildIcon() {
-    final Color    fg;
-    final Color    bg;
+    final Color fg;
+    final Color bg;
     final IconData icon;
 
     switch (item.type) {
       case NotificationType.alert:
-        fg   = AppUtils.severityColor(item.severity);
-        bg   = AppUtils.severityBgColor(item.severity);
+        fg = AppUtils.severityColor(item.severity);
+        bg = AppUtils.severityBgColor(item.severity);
         icon = item.severity == AppConstants.severityCritical
             ? Icons.error_rounded
             : item.severity == AppConstants.severityHigh
@@ -568,26 +587,27 @@ class _NotificationTile extends StatelessWidget {
                 : Icons.info_rounded;
         break;
       case NotificationType.resolved:
-        fg   = AppColors.online;
-        bg   = AppColors.onlineLight;
+        fg = AppColors.online;
+        bg = AppColors.onlineLight;
         icon = Icons.check_circle_rounded;
         break;
       case NotificationType.system:
-        fg   = AppColors.primary;
-        bg   = AppColors.primarySurface;
+        fg = AppColors.primary;
+        bg = AppColors.primarySurface;
         icon = Icons.settings_rounded;
         break;
       case NotificationType.info:
-        fg   = AppColors.degraded;
-        bg   = AppColors.degradedLight;
+        fg = AppColors.degraded;
+        bg = AppColors.degradedLight;
         icon = Icons.trending_up_rounded;
         break;
     }
 
     return Container(
-      width:  42, height: 42,
+      width: 42,
+      height: 42,
       decoration: BoxDecoration(
-        color:        bg,
+        color: bg,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(icon, color: fg, size: 20),

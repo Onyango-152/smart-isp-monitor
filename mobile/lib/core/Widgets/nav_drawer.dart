@@ -4,14 +4,14 @@ import '../theme.dart';
 import '../../features/auth/auth_provider.dart';
 
 /// Item definition for the navigation drawer.
-class _NavItem {
+class NavDrawerItem {
   final IconData icon;
   final IconData selectedIcon;
   final String   label;
   final int?     tabIndex;   // non-null → switches IndexedStack tab
   final Color?   iconColor;
 
-  const _NavItem({
+  const NavDrawerItem({
     required this.icon,
     required this.selectedIcon,
     required this.label,
@@ -38,6 +38,11 @@ class NavDrawer extends StatelessWidget {
   /// Called when the user taps the hamburger toggle.  If null the
   /// hamburger button is hidden (e.g. when used inside Scaffold.drawer).
   final VoidCallback? onToggle;
+  /// Optional role label shown under the user name (e.g. 'Manager').
+  /// Defaults to the user's role from [AuthProvider].
+  final String? roleLabel;
+  /// Optional custom item list. Defaults to the technician item set.
+  final List<NavDrawerItem>? items;
 
   const NavDrawer({
     super.key,
@@ -46,20 +51,19 @@ class NavDrawer extends StatelessWidget {
     this.alertCount        = 0,
     this.notificationCount = 0,
     this.onToggle,
+    this.roleLabel,
+    this.items,
   });
 
   static const double width = 260.0;
 
   // ── Items ─────────────────────────────────────────────────────────────────
 
-  static const List<_NavItem> _items = [
-    _NavItem(icon: Icons.dashboard_outlined,      selectedIcon: Icons.dashboard_rounded,      label: 'Dashboard',     tabIndex: 0),
-    _NavItem(icon: Icons.router_outlined,          selectedIcon: Icons.router_rounded,          label: 'Devices',       tabIndex: 1),
-    _NavItem(icon: Icons.people_outline_rounded,   selectedIcon: Icons.people_rounded,          label: 'Clients',       tabIndex: 2),
-    _NavItem(icon: Icons.warning_amber_rounded,    selectedIcon: Icons.warning_rounded,         label: 'Alerts',        tabIndex: 3, iconColor: AppColors.degraded),
-    _NavItem(icon: Icons.task_alt_outlined,         selectedIcon: Icons.task_alt_rounded,         label: 'Tasks',         tabIndex: 4),
-    _NavItem(icon: Icons.assessment_outlined,       selectedIcon: Icons.assessment_rounded,       label: 'Reports',       tabIndex: 5),
-    _NavItem(icon: Icons.settings_outlined,         selectedIcon: Icons.settings_rounded,         label: 'Settings',      tabIndex: 7),
+  static const List<NavDrawerItem> _defaultItems = [
+    NavDrawerItem(icon: Icons.dashboard_outlined,      selectedIcon: Icons.dashboard_rounded,      label: 'Dashboard',     tabIndex: 0),
+    NavDrawerItem(icon: Icons.router_outlined,          selectedIcon: Icons.router_rounded,          label: 'Devices',       tabIndex: 1),
+    NavDrawerItem(icon: Icons.warning_amber_rounded,    selectedIcon: Icons.warning_rounded,         label: 'Alerts',        tabIndex: 2, iconColor: AppColors.degraded),
+    NavDrawerItem(icon: Icons.settings_outlined,         selectedIcon: Icons.settings_rounded,         label: 'Settings',      tabIndex: 3),
   ];
 
   @override
@@ -78,14 +82,14 @@ class NavDrawer extends StatelessWidget {
           child: Column(
             children: [
               // ── Header / branding ───────────────────────────────────
-              _buildHeader(context, firstName),
+              _buildHeader(context, firstName, user),
               const Divider(height: 1),
 
               // ── Nav items ───────────────────────────────────────────
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  children: _items.map((item) =>
+                  children: (items ?? _defaultItems).map((item) =>
                       _buildNavTile(context, item)).toList(),
                 ),
               ),
@@ -98,7 +102,7 @@ class NavDrawer extends StatelessWidget {
 
   // ── Header ──────────────────────────────────────────────────────────────
 
-  Widget _buildHeader(BuildContext context, String name) {
+  Widget _buildHeader(BuildContext context, String name, dynamic user) {
     return Container(
       padding: EdgeInsets.fromLTRB(
         0, MediaQuery.of(context).padding.top, 0, 0,
@@ -168,8 +172,10 @@ class NavDrawer extends StatelessWidget {
                         color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const Text('Technician', style: TextStyle(
-                        color: Colors.white70, fontSize: 11)),
+                      Text(
+                        roleLabel ?? _capitalizeRole(user?.role ?? ''),
+                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
                     ],
                   ),
                 ),
@@ -183,7 +189,12 @@ class NavDrawer extends StatelessWidget {
 
   // ── Nav item tile ───────────────────────────────────────────────────────
 
-  Widget _buildNavTile(BuildContext context, _NavItem item) {
+  static String _capitalizeRole(String role) {
+    if (role.isEmpty) return 'Staff';
+    return role[0].toUpperCase() + role.substring(1);
+  }
+
+  Widget _buildNavTile(BuildContext context, NavDrawerItem item) {
     final isActive = item.tabIndex != null &&
         item.tabIndex == currentIndex;
     final isDisabled = item.tabIndex == null;

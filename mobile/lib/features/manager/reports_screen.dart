@@ -7,6 +7,7 @@ import '../../data/models/device_model.dart';
 import '../../data/models/metric_model.dart';
 import '../../data/models/alert_model.dart';
 import '../../services/api_client.dart';
+import '../../services/download_helper.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ReportsProvider
@@ -35,10 +36,26 @@ class ReportsProvider extends ChangeNotifier {
   }
 
   // ── Network Performance — averaged from real metrics per day ──────────────
+  // ── Range helpers ─────────────────────────────────────────────────────────
+
+  /// Number of days covered by the selected range (inclusive).
+  int get rangeDayCount {
+    final d = _range.end.difference(_range.start).inDays + 1;
+    return d.clamp(1, 90);
+  }
+
+  /// Short labels for the chart x-axis — one per day in the range.
+  List<String> get rangeLabels {
+    return List.generate(rangeDayCount, (i) {
+      final day = _range.start.add(Duration(days: i));
+      const short = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      return short[day.weekday - 1];
+    });
+  }
+
   List<FlSpot> get latencySpots {
-    final now = DateTime.now();
-    return List.generate(7, (i) {
-      final day = now.subtract(Duration(days: 6 - i));
+    return List.generate(rangeDayCount, (i) {
+      final day = _range.start.add(Duration(days: i));
       final dayMetrics = _metrics.where((m) {
         final t = DateTime.tryParse(m.recordedAt);
         return t != null && t.year == day.year && t.month == day.month && t.day == day.day;
@@ -54,9 +71,8 @@ class ReportsProvider extends ChangeNotifier {
   }
 
   List<FlSpot> get packetLossSpots {
-    final now = DateTime.now();
-    return List.generate(7, (i) {
-      final day = now.subtract(Duration(days: 6 - i));
+    return List.generate(rangeDayCount, (i) {
+      final day = _range.start.add(Duration(days: i));
       final dayMetrics = _metrics.where((m) {
         final t = DateTime.tryParse(m.recordedAt);
         return t != null && t.year == day.year && t.month == day.month && t.day == day.day;
@@ -71,11 +87,10 @@ class ReportsProvider extends ChangeNotifier {
     });
   }
 
-  // ── Fault history — derived from real alerts ──────────────────────────────
+  // ── Fault history — derived from real alerts within range ─────────────────
   List<int> get dailyFaultCounts {
-    final now = DateTime.now();
-    return List.generate(7, (i) {
-      final day = now.subtract(Duration(days: 6 - i));
+    return List.generate(rangeDayCount, (i) {
+      final day = _range.start.add(Duration(days: i));
       return _alerts.where((a) {
         final t = DateTime.tryParse(a.triggeredAt);
         return t != null && t.year == day.year && t.month == day.month && t.day == day.day;
@@ -248,6 +263,31 @@ class _ReportsScreenState extends State<ReportsScreen>
     );
   }
 
+  Future<void> _exportCsv(BuildContext context) async {
+    Navigator.pop(context); // close the bottom sheet
+    final provider = context.read<ReportsProvider>();
+    final range = provider.range;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final bytes = await ApiClient.exportReport(
+        start: range.start,
+        end: range.end,
+      );
+      final startStr =
+          '${range.start.year}${range.start.month.toString().padLeft(2, '0')}${range.start.day.toString().padLeft(2, '0')}';
+      final endStr =
+          '${range.end.year}${range.end.month.toString().padLeft(2, '0')}${range.end.day.toString().padLeft(2, '0')}';
+      downloadBytes(bytes, 'network_report_${startStr}_$endStr.csv');
+      messenger.showSnackBar(
+        const SnackBar(content: Text('CSV report downloaded.')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Export failed. Is the backend running?')),
+      );
+    }
+  }
+
   void _showExportSheet(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
@@ -268,7 +308,7 @@ class _ReportsScreenState extends State<ReportsScreen>
               color: const Color(0xFFE53935),
               onTap: () {
                 Navigator.pop(context);
-                AppUtils.showSnackbar(context, 'PDF export coming in the next release.');
+                AppUtils.showSnackbar(context, 'PDF export is not yet available. Use CSV for now.');
               },
             ),
             const SizedBox(height: 10),
@@ -276,10 +316,7 @@ class _ReportsScreenState extends State<ReportsScreen>
               icon:  Icons.table_chart_outlined,
               label: 'Export as CSV',
               color: AppColors.online,
-              onTap: () {
-                Navigator.pop(context);
-                AppUtils.showSnackbar(context, 'CSV export coming in the next release.');
-              },
+              onTap: () => _exportCsv(context),
             ),
             SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
           ],
@@ -299,7 +336,7 @@ class _PerformanceTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final days = provider.rangeLabels;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -438,7 +475,7 @@ class _FaultsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final days    = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final days    = provider.rangeLabels;
     final counts  = provider.dailyFaultCounts;
     final maxY    = (counts.reduce((a, b) => a > b ? a : b) + 2).toDouble();
     final total   = counts.reduce((a, b) => a + b);

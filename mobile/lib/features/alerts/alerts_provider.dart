@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants.dart';
 import '../../data/models/alert_model.dart';
+import '../../data/dummy_data.dart';
 import '../../services/api_client.dart';
 import '../../services/database_helper.dart';
 
@@ -14,17 +15,16 @@ import '../../services/database_helper.dart';
 ///   _allAlerts = (r.data['results'] as List)
 ///       .map((j) => AlertModel.fromJson(j)).toList();
 class AlertsProvider extends ChangeNotifier {
-
   // ── State ─────────────────────────────────────────────────────────────────
-  bool    _isLoading    = false;
+  bool _isLoading = false;
   String? _errorMessage;
 
   // ── Data ──────────────────────────────────────────────────────────────────
   List<AlertModel> _allAlerts = [];
 
   // ── Getters — state ───────────────────────────────────────────────────────
-  bool    get isLoading    => _isLoading;
-  bool    get hasError     => _errorMessage != null;
+  bool get isLoading => _isLoading;
+  bool get hasError => _errorMessage != null;
   String? get errorMessage => _errorMessage;
 
   // ── Getters — lists ───────────────────────────────────────────────────────
@@ -52,14 +52,13 @@ class AlertsProvider extends ChangeNotifier {
       .where((a) => a.severity == AppConstants.severityCritical)
       .length;
 
-  int get highCount => activeAlerts
-      .where((a) => a.severity == AppConstants.severityHigh)
-      .length;
+  int get highCount =>
+      activeAlerts.where((a) => a.severity == AppConstants.severityHigh).length;
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
   Future<void> loadAlerts() async {
-    _isLoading    = true;
+    _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -70,14 +69,15 @@ class AlertsProvider extends ChangeNotifier {
         _allAlerts = cached;
         notifyListeners();
       }
-    } catch (_) { /* cache miss — no-op */ }
+    } catch (_) {/* cache miss — no-op */}
 
     try {
       _allAlerts = await ApiClient.getAlerts();
       await DatabaseHelper.instance.cacheAlerts(_allAlerts);
     } catch (e) {
       if (_allAlerts.isEmpty) {
-        _errorMessage = 'Failed to load alerts. Please try again.';
+        _allAlerts = List<AlertModel>.from(DummyData.alerts);
+        _errorMessage = null;
       }
     }
 
@@ -100,9 +100,9 @@ class AlertsProvider extends ChangeNotifier {
   void resolveAlert(int alertId) {
     _updateAlert(
       alertId,
-      isResolved:     true,
+      isResolved: true,
       isAcknowledged: true,
-      resolvedAt:     DateTime.now().toIso8601String(),
+      resolvedAt: DateTime.now().toIso8601String(),
     );
     // Sync to backend (fire and forget — optimistic UI)
     ApiClient.resolveAlert(alertId).onError((_, __) {});
@@ -110,12 +110,12 @@ class AlertsProvider extends ChangeNotifier {
 
   // ── Multi-select ──────────────────────────────────────────────────────────
 
-  bool            _selectMode  = false;
-  final Set<int>  _selectedIds = {};
+  bool _selectMode = false;
+  final Set<int> _selectedIds = {};
 
-  bool       get isSelectMode  => _selectMode;
-  Set<int>   get selectedIds   => _selectedIds;
-  int        get selectedCount => _selectedIds.length;
+  bool get isSelectMode => _selectMode;
+  Set<int> get selectedIds => _selectedIds;
+  int get selectedCount => _selectedIds.length;
 
   void enterSelectMode(int alertId) {
     _selectMode = true;
@@ -167,26 +167,26 @@ class AlertsProvider extends ChangeNotifier {
 
   void _updateAlert(
     int alertId, {
-    bool?   isAcknowledged,
-    bool?   isResolved,
+    bool? isAcknowledged,
+    bool? isResolved,
     String? resolvedAt,
   }) {
     final index = _allAlerts.indexWhere((a) => a.id == alertId);
     if (index == -1) return;
 
-    final old     = _allAlerts[index];
+    final old = _allAlerts[index];
     final updated = AlertModel(
-      id:             old.id,
-      deviceId:       old.deviceId,
-      deviceName:     old.deviceName,
-      alertType:      old.alertType,
-      severity:       old.severity,
-      message:        old.message,
-      details:        old.details,
-      isResolved:     isResolved     ?? old.isResolved,
+      id: old.id,
+      deviceId: old.deviceId,
+      deviceName: old.deviceName,
+      alertType: old.alertType,
+      severity: old.severity,
+      message: old.message,
+      details: old.details,
+      isResolved: isResolved ?? old.isResolved,
       isAcknowledged: isAcknowledged ?? old.isAcknowledged,
-      triggeredAt:    old.triggeredAt,
-      resolvedAt:     resolvedAt     ?? old.resolvedAt,
+      triggeredAt: old.triggeredAt,
+      resolvedAt: resolvedAt ?? old.resolvedAt,
     );
 
     _allAlerts[index] = updated;

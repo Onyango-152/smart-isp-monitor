@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/models/task_model.dart';
+import '../../data/dummy_data.dart';
 import '../../services/api_client.dart';
 import '../../services/database_helper.dart';
 
@@ -17,29 +18,28 @@ import '../../services/database_helper.dart';
 ///   _allTasks = (r.data['results'] as List)
 ///       .map((j) => TaskModel.fromJson(j)).toList();
 class TasksProvider extends ChangeNotifier {
-
   // ── State ─────────────────────────────────────────────────────────────────
-  bool    _isLoading    = false;
+  bool _isLoading = false;
   String? _errorMessage;
 
   // ── Data ──────────────────────────────────────────────────────────────────
-  List<TaskModel> _allTasks      = [];
+  List<TaskModel> _allTasks = [];
   List<TaskModel> _filteredTasks = [];
 
   // ── Filter state ──────────────────────────────────────────────────────────
   String _searchQuery = '';
-  String _typeFilter  = 'all';    // all | snmp | ping | http | tcp | dns
-  String _statusFilter = 'all';   // all | success | failed | pending
+  String _typeFilter = 'all'; // all | snmp | ping | http | tcp | dns
+  String _statusFilter = 'all'; // all | success | failed | pending
 
   // ── Getters — state ───────────────────────────────────────────────────────
-  bool    get isLoading    => _isLoading;
-  bool    get hasError     => _errorMessage != null;
+  bool get isLoading => _isLoading;
+  bool get hasError => _errorMessage != null;
   String? get errorMessage => _errorMessage;
 
   // ── Getters — data ────────────────────────────────────────────────────────
-  List<TaskModel> get tasks        => _filteredTasks;
-  int             get totalCount   => _allTasks.length;
-  int             get filteredCount => _filteredTasks.length;
+  List<TaskModel> get tasks => _filteredTasks;
+  int get totalCount => _allTasks.length;
+  int get filteredCount => _filteredTasks.length;
 
   /// Enabled tasks (sorted: failed first, then by last run).
   List<TaskModel> get enabledTasks {
@@ -61,15 +61,14 @@ class TasksProvider extends ChangeNotifier {
       _filteredTasks.where((t) => !t.enabled).toList();
 
   // ── Getters — counts ──────────────────────────────────────────────────────
-  int get enabledCount  => _allTasks.where((t) => t.enabled).length;
+  int get enabledCount => _allTasks.where((t) => t.enabled).length;
   int get disabledCount => _allTasks.where((t) => !t.enabled).length;
-  int get failedCount   => _allTasks.where((t) => t.enabled && t.lastStatus == 'failed').length;
+  int get failedCount =>
+      _allTasks.where((t) => t.enabled && t.lastStatus == 'failed').length;
 
   /// True when any filter or search is active.
   bool get hasActiveFilters =>
-      _searchQuery.isNotEmpty ||
-      _typeFilter   != 'all' ||
-      _statusFilter != 'all';
+      _searchQuery.isNotEmpty || _typeFilter != 'all' || _statusFilter != 'all';
 
   /// Next available ID for a new task.
   int get nextId {
@@ -78,14 +77,14 @@ class TasksProvider extends ChangeNotifier {
   }
 
   // ── Getters — filter values ───────────────────────────────────────────────
-  String get searchQuery  => _searchQuery;
-  String get typeFilter   => _typeFilter;
+  String get searchQuery => _searchQuery;
+  String get typeFilter => _typeFilter;
   String get statusFilter => _statusFilter;
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
   Future<void> loadTasks() async {
-    _isLoading    = true;
+    _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -97,7 +96,7 @@ class TasksProvider extends ChangeNotifier {
         _applyFilters();
         notifyListeners();
       }
-    } catch (_) { /* cache miss — no-op */ }
+    } catch (_) {/* cache miss — no-op */}
 
     try {
       _allTasks = await ApiClient.getTasks();
@@ -105,7 +104,9 @@ class TasksProvider extends ChangeNotifier {
       await DatabaseHelper.instance.cacheTasks(_allTasks);
     } catch (e) {
       if (_allTasks.isEmpty) {
-        _errorMessage = 'Failed to load tasks. Please try again.';
+        _allTasks = List<TaskModel>.from(DummyData.tasks);
+        _applyFilters();
+        _errorMessage = null;
       }
     }
 
@@ -136,8 +137,8 @@ class TasksProvider extends ChangeNotifier {
   }
 
   void clearFilters() {
-    _searchQuery  = '';
-    _typeFilter   = 'all';
+    _searchQuery = '';
+    _typeFilter = 'all';
     _statusFilter = 'all';
     _applyFilters();
     notifyListeners();
@@ -161,7 +162,7 @@ class TasksProvider extends ChangeNotifier {
     final index = _allTasks.indexWhere((t) => t.id == taskId);
     if (index == -1) return;
     _allTasks[index] = _allTasks[index].copyWith(
-      lastRun:    DateTime.now().toUtc().toIso8601String(),
+      lastRun: DateTime.now().toUtc().toIso8601String(),
       lastStatus: 'success',
     );
     _applyFilters();
@@ -216,34 +217,50 @@ class TasksProvider extends ChangeNotifier {
   /// Human-readable label for a task type.
   static String taskTypeLabel(String type) {
     switch (type) {
-      case 'snmp': return 'SNMP Poll';
-      case 'ping': return 'ICMP Ping';
-      case 'http': return 'HTTP Check';
-      case 'tcp':  return 'TCP Connect';
-      case 'dns':  return 'DNS Lookup';
-      default:     return type.toUpperCase();
+      case 'snmp':
+        return 'SNMP Poll';
+      case 'ping':
+        return 'ICMP Ping';
+      case 'http':
+        return 'HTTP Check';
+      case 'tcp':
+        return 'TCP Connect';
+      case 'dns':
+        return 'DNS Lookup';
+      default:
+        return type.toUpperCase();
     }
   }
 
   /// Icon for a task type.
   static IconData taskTypeIcon(String type) {
     switch (type) {
-      case 'snmp': return Icons.poll_rounded;
-      case 'ping': return Icons.network_ping_rounded;
-      case 'http': return Icons.language_rounded;
-      case 'tcp':  return Icons.cable_rounded;
-      case 'dns':  return Icons.dns_rounded;
-      default:     return Icons.task_alt_rounded;
+      case 'snmp':
+        return Icons.poll_rounded;
+      case 'ping':
+        return Icons.network_ping_rounded;
+      case 'http':
+        return Icons.language_rounded;
+      case 'tcp':
+        return Icons.cable_rounded;
+      case 'dns':
+        return Icons.dns_rounded;
+      default:
+        return Icons.task_alt_rounded;
     }
   }
 
   /// Colour for a task's last_status.
   static Color statusColor(String status) {
     switch (status) {
-      case 'success': return const Color(0xFF16A34A); // green
-      case 'failed':  return const Color(0xFFDC2626); // red
-      case 'pending': return const Color(0xFFD97706); // amber
-      default:        return const Color(0xFF64748B); // grey
+      case 'success':
+        return const Color(0xFF16A34A); // green
+      case 'failed':
+        return const Color(0xFFDC2626); // red
+      case 'pending':
+        return const Color(0xFFD97706); // amber
+      default:
+        return const Color(0xFF64748B); // grey
     }
   }
 
@@ -261,10 +278,10 @@ class TasksProvider extends ChangeNotifier {
       // ── Text search ───────────────────────────────────────────────
       final q = _searchQuery;
       if (q.isNotEmpty) {
-        final name   = task.name.toLowerCase();
+        final name = task.name.toLowerCase();
         final device = (task.deviceName ?? '').toLowerCase();
-        final desc   = (task.description ?? '').toLowerCase();
-        final type   = taskTypeLabel(task.taskType).toLowerCase();
+        final desc = (task.description ?? '').toLowerCase();
+        final type = taskTypeLabel(task.taskType).toLowerCase();
         if (!name.contains(q) &&
             !device.contains(q) &&
             !desc.contains(q) &&

@@ -222,3 +222,88 @@ class MonitoringStatsView(APIView):
             ),
             'recent_reports': MonitoringReportSerializer(recent_reports, many=True).data,
         })
+
+
+class ReportExportView(APIView):
+    """
+    GET /api/monitoring/export/?format=csv&start=YYYY-MM-DD&end=YYYY-MM-DD
+
+    Streams a CSV file containing all MetricReadings and alert counts for the
+    requested date range.  Defaults to the last 7 days when dates are omitted.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        import csv
+        import io
+        from datetime import datetime
+        from django.http import HttpResponse
+        from django.utils.timezone import make_aware, is_naive
+        from metrics.models import MetricReading
+        from alerts.models import Alert
+
+        start_str = request.query_params.get('start')
+        end_str   = request.query_params.get('end')
+
+        try:
+            start_dt = (
+                datetime.strptime(start_str, '%Y-%m-%d')
+                if start_str
+                else (timezone.now() - timedelta(days=7)).replace(
+                    hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+                )
+            )
+            end_dt = (
+                datetime.strptime(end_str, '%Y-%m-%d')
+                if end_str
+                else timezone.now().replace(tzinfo=None)
+            )
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Make timezone-aware
+        if is_naive(start_dt):
+            start_dt = make_aware(start_dt)
+        if is_naive(end_dt):
+            end_dt = make_aware(end_dt.replace(hour=23, minute=59, second=59))
+
+        readings = (
+            MetricReading.objects
+            .filter(timestamp__gte=start_dt, timestamp__lte=end_dt)
+            .select_related('device', 'metric')
+            .order_by('device__name', '-timestamp')
+        )
+
+        # Pre-aggregate alert counts per device in the range
+        alerts = (
+            Alert.objects
+            .filter(triggered_at__gte=start_dt, triggered_at__lte=end_dt)
+            .values_list('device_id', flat=True)
+        )
+        alert_counts: dict = {}
+        for device_id in alerts:
+            alert_counts[device_id] = alert_counts.get(device_id, 0) + 1
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([
+            'device_name', 'ip_address', 'metric', 'value', 'unit', 'timestamp', 'alert_count',
+        ])
+        for r in readings:
+            writer.writerow([
+                r.device.name,
+                r.device.ip_address,
+                r.metric.name,
+                r.value,
+                r.metric.unit,
+                r.timestamp.isoformat(),
+                alert_counts.get(r.device_id, 0),
+            ])
+
+        response = HttpResponse(output.getvalue(), content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="network_report.csv"'
+        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+        return response
