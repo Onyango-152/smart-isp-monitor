@@ -272,10 +272,15 @@ class VerifyEmailView(APIView):
 
         email = serializer.validated_data['email']
         otp = serializer.validated_data['otp']
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
+        matches = User.objects.filter(email=email).order_by('-id')
+        if not matches.exists():
             return Response({'error': 'Account not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if matches.count() > 1:
+            return Response(
+                {'error': 'Multiple accounts share this email. Please contact support.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        user = matches.first()
 
         ok, message = verify_email_otp(user, otp)
         if not ok:

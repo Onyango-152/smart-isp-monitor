@@ -8,7 +8,7 @@ import '../utils.dart';
 /// instead of a blank screen.
 ///
 /// Features:
-///   - Fade + scale entrance animation
+///   - Optional fade + scale entrance animation
 ///   - Configurable icon colour for different contexts
 ///     (blue = no data, red = error, amber = filtered/empty search)
 ///   - Primary action button (e.g. "Retry", "Add Device")
@@ -58,6 +58,7 @@ class EmptyState extends StatefulWidget {
   final VoidCallback? onAction;
   final String?      secondaryLabel; // optional second button
   final VoidCallback? onSecondary;
+  final bool         animate;
 
   const EmptyState({
     super.key,
@@ -69,6 +70,7 @@ class EmptyState extends StatefulWidget {
     this.onAction,
     this.secondaryLabel,
     this.onSecondary,
+    this.animate = true,
   });
 
   @override
@@ -84,19 +86,28 @@ class _EmptyStateState extends State<EmptyState>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync:    this,
-      duration: const Duration(milliseconds: 500),
-    );
-    _fadeAnim = CurvedAnimation(
-        parent: _ctrl, curve: Curves.easeOut);
-    _scaleAnim = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
-    );
-    // Short delay so it doesn't fire during the parent's build
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) _ctrl.forward();
-    });
+    if (widget.animate) {
+      _ctrl = AnimationController(
+        vsync:    this,
+        duration: const Duration(milliseconds: 500),
+      );
+      _fadeAnim = CurvedAnimation(
+          parent: _ctrl, curve: Curves.easeOut);
+      _scaleAnim = Tween<double>(begin: 0.85, end: 1.0).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
+      );
+      // Short delay so it doesn't fire during the parent's build
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) _ctrl.forward();
+      });
+    } else {
+      _ctrl = AnimationController(
+        vsync:    this,
+        duration: Duration.zero,
+      )..value = 1.0;
+      _fadeAnim  = const AlwaysStoppedAnimation(1.0);
+      _scaleAnim = const AlwaysStoppedAnimation(1.0);
+    }
   }
 
   @override

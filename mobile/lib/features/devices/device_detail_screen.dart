@@ -22,12 +22,14 @@ class DeviceDetailScreen extends StatelessWidget {
     final device = ModalRoute.of(context)?.settings.arguments;
     if (device == null || device is! DeviceModel) {
       return Scaffold(
+        backgroundColor: AppColors.bg(context),
         appBar: AppBar(title: const Text('Device Detail')),
         body: EmptyState(
           icon:    Icons.error_outline_rounded,
           title:   'No Device Data',
           message: 'No device was passed to this screen.\nGo back and tap a device from the list.',
           color:   AppColors.offline,
+          animate: false,
         ),
       );
     }
@@ -47,6 +49,7 @@ class _DeviceDetailContent extends StatelessWidget {
       builder: (context, provider, _) {
         final device = provider.device;
         return Scaffold(
+          backgroundColor: AppColors.bg(context),
           body: provider.isLoading
               ? _buildLoadingState(context, device)
               : provider.errorMessage != null
@@ -64,7 +67,7 @@ class _DeviceDetailContent extends StatelessWidget {
       slivers: [
         _buildSliverAppBar(context, device, null),
         SliverFillRemaining(
-          child: ShimmerSkeleton.deviceDetail(),
+          child: ShimmerSkeleton.deviceDetail(animate: false),
         ),
       ],
     );
@@ -83,6 +86,7 @@ class _DeviceDetailContent extends StatelessWidget {
             title:       'Could Not Load Device',
             message:     provider.errorMessage!,
             color:       AppColors.offline,
+            animate:     false,
             actionLabel: 'Retry',
             onAction:    provider.loadDeviceData,
           ),
@@ -122,7 +126,7 @@ class _DeviceDetailContent extends StatelessWidget {
 
   SliverAppBar _buildSliverAppBar(
       BuildContext context, DeviceModel device, DeviceDetailProvider? provider) {
-    final statusColor = AppUtils.statusColor(device.status);
+    final statusColor = AppColors.primary;
     return SliverAppBar(
       expandedHeight: 190,
       pinned: true,
@@ -131,16 +135,17 @@ class _DeviceDetailContent extends StatelessWidget {
       leading: _CircleBackButton(onTap: () => Navigator.of(context).pop()),
       actions: [
         if (provider != null)
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-            tooltip: 'Refresh',
+          TextButton(
             onPressed: () {
               AppUtils.haptic();
               provider.refresh();
             },
+            child: const Text('Refresh',
+                style: TextStyle(color: AppColors.textOnDark)),
           ),
         PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+          child: const Text('More',
+              style: TextStyle(color: AppColors.textOnDark)),
           onSelected: (value) {
             switch (value) {
               case 'edit':
@@ -160,19 +165,13 @@ class _DeviceDetailContent extends StatelessWidget {
           itemBuilder: (_) => [
             const PopupMenuItem(
               value: 'edit',
-              child: Row(children: [
-                Icon(Icons.edit_rounded, size: 18, color: AppColors.primary),
-                SizedBox(width: 10),
-                Text('Edit Device'),
-              ]),
+              child: Text('Edit Device',
+                  style: TextStyle(color: AppColors.primary)),
             ),
             const PopupMenuItem(
               value: 'delete',
-              child: Row(children: [
-                Icon(Icons.delete_rounded, size: 18, color: AppColors.offline),
-                SizedBox(width: 10),
-                Text('Delete Device', style: TextStyle(color: AppColors.offline)),
-              ]),
+              child: Text('Delete Device',
+                  style: TextStyle(color: AppColors.primary)),
             ),
           ],
         ),
@@ -198,21 +197,6 @@ class _DeviceDetailContent extends StatelessWidget {
                   // ── Icon + name ─────────────────────────────────────
                   Row(
                     children: [
-                      Container(
-                        width: 56, height: 56,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.25), width: 1.5),
-                        ),
-                        child: Icon(
-                          AppUtils.deviceTypeIcon(device.deviceType),
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,7 +204,7 @@ class _DeviceDetailContent extends StatelessWidget {
                             Text(
                               device.name,
                               style: const TextStyle(
-                                color: Colors.white,
+                                color: AppColors.textOnDark,
                                 fontSize: 22,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: -0.3,
@@ -232,7 +216,7 @@ class _DeviceDetailContent extends StatelessWidget {
                             Text(
                               AppUtils.deviceTypeLabel(device.deviceType),
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.7),
+                                color: AppColors.textOnDark.withOpacity(0.7),
                                 fontSize: 13,
                               ),
                             ),
@@ -246,14 +230,11 @@ class _DeviceDetailContent extends StatelessWidget {
                   Row(
                     children: [
                       _StatusPill(status: device.status, color: statusColor),
-                      const SizedBox(width: 12),
-                      Icon(Icons.lan_rounded,
-                          size: 14, color: Colors.white.withOpacity(0.6)),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 10),
                       Text(
                         device.ipAddress,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.85),
+                          color: AppColors.textOnDark.withOpacity(0.85),
                           fontSize: 13,
                           fontFamily: 'monospace',
                           letterSpacing: 0.5,
@@ -277,11 +258,7 @@ class _DeviceDetailContent extends StatelessWidget {
   // ══════════════════════════════════════════════════════════════════════════
 
   Widget _buildQuickStatsStrip(BuildContext context, DeviceModel device, DeviceDetailProvider provider) {
-    final uptimeColor = provider.deviceUptimePct >= 99
-        ? AppColors.online
-        : provider.deviceUptimePct >= 95
-            ? AppColors.degraded
-            : AppColors.offline;
+    final uptimeColor = AppColors.primary;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -298,24 +275,21 @@ class _DeviceDetailContent extends StatelessWidget {
             child: Row(
               children: [
                 _InfoChip(
-                  icon: Icons.location_on_rounded,
                   label: 'Location',
                   value: device.location ?? 'Not set',
                   color: AppColors.primary,
                 ),
                 _VerticalDot(),
                 _InfoChip(
-                  icon: Icons.access_time_rounded,
                   label: 'Last Seen',
                   value: AppUtils.timeAgo(device.lastSeen),
-                  color: AppColors.textSecondaryOf(context),
+                  color: AppColors.primary,
                 ),
                 _VerticalDot(),
                 _InfoChip(
-                  icon: Icons.calendar_today_rounded,
                   label: 'Added',
                   value: AppUtils.formatShortDate(device.createdAt),
-                  color: AppColors.textSecondaryOf(context),
+                  color: AppColors.primary,
                 ),
               ],
             ),
@@ -325,14 +299,12 @@ class _DeviceDetailContent extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: uptimeColor.withOpacity(0.06),
+              color: AppColors.primarySurfaceOf(context),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: uptimeColor.withOpacity(0.15)),
+              border: Border.all(color: AppColors.primary.withOpacity(0.2)),
             ),
             child: Row(
               children: [
-                Icon(Icons.signal_cellular_alt_rounded, size: 16, color: uptimeColor),
-                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,12 +314,12 @@ class _DeviceDetailContent extends StatelessWidget {
                         children: [
                           Text('7-Day Uptime',
                               style: AppTextStyles.caption.copyWith(
-                                  color: uptimeColor, fontWeight: FontWeight.w600)),
+                                  color: AppColors.primary, fontWeight: FontWeight.w600)),
                           Text('${provider.deviceUptimePct.toStringAsFixed(1)}%',
                               style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
-                                  color: uptimeColor)),
+                                  color: AppColors.primary)),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -356,8 +328,8 @@ class _DeviceDetailContent extends StatelessWidget {
                         child: LinearProgressIndicator(
                           value: (provider.deviceUptimePct / 100).clamp(0.0, 1.0),
                           minHeight: 5,
-                          backgroundColor: uptimeColor.withOpacity(0.15),
-                          valueColor: AlwaysStoppedAnimation(uptimeColor),
+                          backgroundColor: AppColors.primary.withOpacity(0.12),
+                          valueColor: const AlwaysStoppedAnimation(AppColors.primary),
                         ),
                       ),
                     ],
@@ -372,18 +344,16 @@ class _DeviceDetailContent extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               decoration: BoxDecoration(
-                color: AppColors.offlineLight,
+                color: AppColors.primarySurfaceOf(context),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.offline.withOpacity(0.25)),
+                border: Border.all(color: AppColors.primary.withOpacity(0.25)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_rounded, color: AppColors.offline, size: 16),
-                  const SizedBox(width: 8),
                   Text(
                     '${provider.activeAlerts.length} active alert${provider.activeAlerts.length > 1 ? "s" : ""}',
                     style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.offline, fontWeight: FontWeight.w600),
+                        color: AppColors.primary, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -444,29 +414,13 @@ class _DeviceDetailContent extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           boxShadow: AppShadows.card,
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.primarySurfaceOf(context),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.sensors_off_rounded,
-                  color: AppColors.primary, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('No Metrics Yet', style: AppTextStyles.heading3),
-                  const SizedBox(height: 2),
-                  Text('Device has not been polled.',
-                      style: AppTextStyles.bodySmall),
-                ],
-              ),
-            ),
+            Text('No Metrics Yet', style: AppTextStyles.heading3),
+            const SizedBox(height: 2),
+            Text('Device has not been polled.',
+                style: AppTextStyles.bodySmall),
           ],
         ),
       ),
@@ -488,11 +442,10 @@ class _DeviceDetailContent extends StatelessWidget {
                       ? metric.latencyMs!.toStringAsFixed(1)
                       : 'N/A',
                   unit: 'ms',
-                  icon: Icons.speed_rounded,
                   progress: metric.latencyMs != null
                       ? (metric.latencyMs! / 300).clamp(0.0, 1.0)
                       : null,
-                  color: _latencyColor(metric.latencyMs),
+                  color: AppColors.primary,
                 ),
               ),
               const SizedBox(width: 10),
@@ -503,11 +456,10 @@ class _DeviceDetailContent extends StatelessWidget {
                       ? metric.packetLossPct!.toStringAsFixed(1)
                       : 'N/A',
                   unit: '%',
-                  icon: Icons.signal_wifi_bad_rounded,
                   progress: metric.packetLossPct != null
                       ? (metric.packetLossPct! / 100).clamp(0.0, 1.0)
                       : null,
-                  color: _pctColor(metric.packetLossPct, warnAt: 5, critAt: 15),
+                  color: AppColors.primary,
                 ),
               ),
             ],
@@ -523,11 +475,10 @@ class _DeviceDetailContent extends StatelessWidget {
                       ? metric.cpuUsagePct!.toStringAsFixed(0)
                       : 'N/A',
                   unit: '%',
-                  icon: Icons.memory_rounded,
                   progress: metric.cpuUsagePct != null
                       ? (metric.cpuUsagePct! / 100).clamp(0.0, 1.0)
                       : null,
-                  color: _pctColor(metric.cpuUsagePct, warnAt: 75, critAt: 90),
+                  color: AppColors.primary,
                 ),
               ),
               const SizedBox(width: 10),
@@ -538,11 +489,10 @@ class _DeviceDetailContent extends StatelessWidget {
                       ? metric.memoryUsagePct!.toStringAsFixed(0)
                       : 'N/A',
                   unit: '%',
-                  icon: Icons.storage_rounded,
                   progress: metric.memoryUsagePct != null
                       ? (metric.memoryUsagePct! / 100).clamp(0.0, 1.0)
                       : null,
-                  color: _pctColor(metric.memoryUsagePct, warnAt: 80, critAt: 90),
+                  color: AppColors.primary,
                 ),
               ),
             ],
@@ -555,7 +505,6 @@ class _DeviceDetailContent extends StatelessWidget {
                 child: _MetricTile(
                   label: 'Bandwidth In',
                   value: AppUtils.formatBandwidth(metric.bandwidthInBps),
-                  icon: Icons.arrow_downward_rounded,
                   color: AppColors.primary,
                 ),
               ),
@@ -564,8 +513,7 @@ class _DeviceDetailContent extends StatelessWidget {
                 child: _MetricTile(
                   label: 'Uptime',
                   value: AppUtils.formatUptime(metric.uptimeSeconds),
-                  icon: Icons.timer_rounded,
-                  color: AppColors.online,
+                  color: AppColors.primary,
                 ),
               ),
             ],
@@ -573,20 +521,6 @@ class _DeviceDetailContent extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Color _latencyColor(double? ms) {
-    if (ms == null) return AppColors.textHint;
-    if (ms >= 200) return AppColors.offline;
-    if (ms >= 100) return AppColors.degraded;
-    return AppColors.online;
-  }
-
-  Color _pctColor(double? pct, {required double warnAt, required double critAt}) {
-    if (pct == null) return AppColors.textHint;
-    if (pct >= critAt) return AppColors.offline;
-    if (pct >= warnAt) return AppColors.degraded;
-    return AppColors.online;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -638,7 +572,7 @@ class _DeviceDetailContent extends StatelessWidget {
               _LegendDot(color: AppColors.primary, label: 'Latency (ms)'),
               const SizedBox(width: 16),
               _LegendDot(
-                  color: AppColors.offline.withOpacity(0.4),
+                  color: AppColors.primary.withOpacity(0.4),
                   label: 'Threshold (200 ms)'),
             ],
           ),
@@ -754,7 +688,7 @@ class _DeviceDetailContent extends StatelessWidget {
         LineChartBarData(
           spots: thresholdSpots,
           isCurved: false,
-          color: AppColors.offline.withOpacity(0.4),
+          color: AppColors.primary.withOpacity(0.4),
           barWidth: 1.5,
           dashArray: [6, 4],
           dotData: const FlDotData(show: false),
@@ -821,46 +755,38 @@ class _DeviceDetailContent extends StatelessWidget {
               InfoRow(
                 label: 'IP Address',
                 value: device.ipAddress,
-                icon:  Icons.lan_rounded,
                 isMono: true,
                 copyable: true,
               ),
               InfoRow(
                 label: 'MAC Address',
                 value: device.macAddress ?? 'N/A',
-                icon:  Icons.fingerprint_rounded,
                 isMono: true,
                 copyable: device.macAddress != null,
               ),
               InfoRow(
                 label: 'Device Type',
                 value: AppUtils.deviceTypeLabel(device.deviceType),
-                icon:  Icons.category_outlined,
               ),
               InfoRow(
                 label: 'Location',
                 value: device.location ?? 'Not set',
-                icon:  Icons.location_on_outlined,
               ),
               InfoRow(
                 label: 'SNMP',
                 value: device.snmpEnabled ? 'Enabled' : 'Disabled',
-                icon:  Icons.settings_ethernet_rounded,
-                valueColor:
-                    device.snmpEnabled ? AppColors.online : AppColors.textSecondaryOf(context),
+                valueColor: AppColors.primary,
               ),
               if (device.snmpEnabled)
                 InfoRow(
                   label: 'SNMP Community',
                   value: device.snmpCommunity,
-                  icon:  Icons.vpn_key_rounded,
                   isMono: true,
                   copyable: true,
                 ),
               InfoRow(
                 label: 'Description',
                 value: device.description ?? 'No description',
-                icon:  Icons.notes_rounded,
                 isLast: true,
               ),
             ],
@@ -886,9 +812,7 @@ class _DeviceDetailContent extends StatelessWidget {
               Container(
                 width: 4, height: 18,
                 decoration: BoxDecoration(
-                  color: provider.activeAlerts.isEmpty
-                      ? AppColors.online
-                      : AppColors.degraded,
+                  color: AppColors.primary,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -900,9 +824,7 @@ class _DeviceDetailContent extends StatelessWidget {
                     ? 'All clear'
                     : '${provider.activeAlerts.length} open',
                 style: AppTextStyles.caption.copyWith(
-                  color: provider.activeAlerts.isEmpty
-                      ? AppColors.online
-                      : AppColors.degraded,
+                  color: AppColors.primary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -916,33 +838,19 @@ class _DeviceDetailContent extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.onlineLight,
+                color: AppColors.primarySurfaceOf(context),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.online.withOpacity(0.2)),
+                border: Border.all(color: AppColors.primary.withOpacity(0.2)),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 36, height: 36,
-                    decoration: BoxDecoration(
-                      color: AppColors.online.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.check_circle_rounded,
-                        color: AppColors.online, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('No Active Alerts',
-                          style: AppTextStyles.heading3.copyWith(
-                              color: AppColors.online)),
-                      const SizedBox(height: 2),
-                      Text('This device is operating normally.',
-                          style: AppTextStyles.caption),
-                    ],
-                  ),
+                  Text('No Active Alerts',
+                      style: AppTextStyles.heading3.copyWith(
+                          color: AppColors.primary)),
+                  const SizedBox(height: 2),
+                  Text('This device is operating normally.',
+                      style: AppTextStyles.caption),
                 ],
               ),
             ),
@@ -1049,13 +957,10 @@ class _DeviceDetailContent extends StatelessWidget {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.network_ping_rounded,
-                          color: Colors.white, size: 22),
-                      SizedBox(width: 10),
                       Text(
                         'Run Diagnostic',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textOnDark,
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -1090,9 +995,6 @@ class _DeviceDetailContent extends StatelessWidget {
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.build_rounded,
-                          color: AppColors.primary, size: 22),
-                      SizedBox(width: 10),
                       Text(
                         'Troubleshoot',
                         style: TextStyle(
@@ -1179,38 +1081,13 @@ class _CircleBackButton extends StatelessWidget {
 }
 
 /// Status pill with animated pulsing dot shown in the hero header.
-class _StatusPill extends StatefulWidget {
+class _StatusPill extends StatelessWidget {
   final String status;
   final Color  color;
   const _StatusPill({required this.status, required this.color});
 
-  @override
-  State<_StatusPill> createState() => _StatusPillState();
-}
-
-class _StatusPillState extends State<_StatusPill>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double>   _pulse;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1200))
-      ..repeat(reverse: true);
-    _pulse = Tween(begin: 0.6, end: 1.0).animate(
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
   String get _label {
-    switch (widget.status.toLowerCase()) {
+    switch (status.toLowerCase()) {
       case 'online':   return 'Online';
       case 'offline':  return 'Offline';
       case 'degraded': return 'Degraded';
@@ -1223,40 +1100,18 @@ class _StatusPillState extends State<_StatusPill>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: widget.color.withOpacity(0.2),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: widget.color.withOpacity(0.4)),
+        border: Border.all(color: color.withOpacity(0.4)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FadeTransition(
-            opacity: _pulse,
-            child: Container(
-              width: 7, height: 7,
-              decoration: BoxDecoration(
-                color: widget.color,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.color.withOpacity(0.5),
-                    blurRadius: 4,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            _label,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
+      child: Text(
+        _label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+        ),
       ),
     );
   }
@@ -1264,12 +1119,10 @@ class _StatusPillState extends State<_StatusPill>
 
 /// Info chip used in the quick stats strip.
 class _InfoChip extends StatelessWidget {
-  final IconData icon;
   final String   label;
   final String   value;
   final Color    color;
   const _InfoChip({
-    required this.icon,
     required this.label,
     required this.value,
     required this.color,
@@ -1281,8 +1134,6 @@ class _InfoChip extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 16, color: color.withOpacity(0.7)),
-          const SizedBox(height: 4),
           Text(label, style: AppTextStyles.caption),
           const SizedBox(height: 2),
           Text(
@@ -1306,7 +1157,7 @@ class _VerticalDot extends StatelessWidget {
       width: 1,
       height: 30,
       margin: const EdgeInsets.symmetric(horizontal: 4),
-      color: AppColors.divider,
+      color: AppColors.primary.withOpacity(0.2),
     );
   }
 }
@@ -1316,7 +1167,6 @@ class _MetricTile extends StatelessWidget {
   final String   label;
   final String   value;
   final String?  unit;
-  final IconData icon;
   final double?  progress;
   final Color    color;
 
@@ -1324,7 +1174,6 @@ class _MetricTile extends StatelessWidget {
     required this.label,
     required this.value,
     this.unit,
-    required this.icon,
     this.progress,
     this.color = AppColors.primary,
   });
@@ -1338,82 +1187,56 @@ class _MetricTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: AppShadows.card,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Circular indicator or icon box ────────────────────────
-          if (progress != null)
-            SizedBox(
-              width: 44, height: 44,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 44, height: 44,
-                    child: CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 4,
-                      backgroundColor: color.withOpacity(0.12),
-                      valueColor: AlwaysStoppedAnimation(color),
-                      strokeCap: StrokeCap.round,
-                    ),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w500),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                    height: 1.1,
                   ),
-                  Icon(icon, size: 18, color: color),
-                ],
-              ),
-            )
-          else
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, size: 20, color: color),
-            ),
-          const SizedBox(width: 12),
-          // ── Text ──────────────────────────────────────────────────
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w500),
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        value,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: color,
-                          height: 1.1,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (unit != null) ...[
-                      const SizedBox(width: 2),
-                      Text(
-                        unit!,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: color.withOpacity(0.7),
-                        ),
-                      ),
-                    ],
-                  ],
+              ),
+              if (unit != null) ...[
+                const SizedBox(width: 2),
+                Text(
+                  unit!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: color.withOpacity(0.7),
+                  ),
                 ),
               ],
-            ),
+            ],
           ),
+          if (progress != null) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: progress!.clamp(0.0, 1.0),
+                minHeight: 4,
+                backgroundColor: color.withOpacity(0.12),
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1426,8 +1249,7 @@ class _AlertTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = AppUtils.severityColor(alert.severity);
-    final bg    = AppUtils.severityBgColor(alert.severity);
+    final color = AppColors.primary;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       padding: const EdgeInsets.all(14),
@@ -1440,15 +1262,6 @@ class _AlertTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.warning_rounded, color: color, size: 18),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1466,9 +1279,6 @@ class _AlertTile extends StatelessWidget {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    Icon(Icons.access_time_rounded,
-                        size: 12, color: AppColors.textHint),
-                    const SizedBox(width: 4),
                     Text(
                       AppUtils.timeAgo(alert.triggeredAt),
                       style: AppTextStyles.caption,
@@ -1530,8 +1340,7 @@ class _DiagnosticHistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = snapshot.passed ? AppColors.online : AppColors.offline;
-    final bg    = snapshot.passed ? AppColors.onlineLight : AppColors.offlineLight;
+    final color = AppColors.primary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -1542,19 +1351,6 @@ class _DiagnosticHistoryTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 38, height: 38,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              snapshot.passed ? Icons.check_circle_rounded : Icons.cancel_rounded,
-              color: color,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

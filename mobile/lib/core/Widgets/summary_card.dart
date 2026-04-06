@@ -35,6 +35,7 @@ class SummaryCard extends StatefulWidget {
   final VoidCallback? onTap;
   final bool         animate;
   final bool         showBadge; // red dot for cards needing attention
+  final bool         showIcon;
 
   const SummaryCard({
     super.key,
@@ -47,6 +48,7 @@ class SummaryCard extends StatefulWidget {
     this.onTap,
     this.animate  = true,
     this.showBadge = false,
+    this.showIcon = true,
   });
 
   @override
@@ -122,59 +124,58 @@ class _SummaryCardState extends State<SummaryCard>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
 
-                  // ── Icon row with optional badge ────────────────────
-                  Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
-                    children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Container(
-                            width:  38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: widget.backgroundColor,
-                              borderRadius:
-                                  BorderRadius.circular(10),
+                  if (widget.showIcon) ...[
+                    // ── Icon row with optional badge ────────────────
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              width:  38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: widget.backgroundColor,
+                                borderRadius:
+                                    BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                widget.icon,
+                                color: widget.color,
+                                size:  20,
+                              ),
                             ),
-                            child: Icon(
-                              widget.icon,
-                              color: widget.color,
-                              size:  20,
-                            ),
-                          ),
-                          if (widget.showBadge)
-                            Positioned(
-                              right: -3,
-                              top:   -3,
-                              child: Container(
-                                width:  10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color:  AppColors.offline,
-                                  shape:  BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 1.5,
+                            if (widget.showBadge)
+                              Positioned(
+                                right: -3,
+                                top:   -3,
+                                child: Container(
+                                  width:  10,
+                                  height: 10,
+                                  decoration: BoxDecoration(
+                                    color:  AppColors.offline,
+                                    shape:  BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 1.5,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
-
-                      // Tap arrow indicator
-                      if (tappable)
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size:  13,
-                          color: widget.color.withOpacity(0.5),
+                          ],
                         ),
-                    ],
-                  ),
 
-                  const SizedBox(height: 12),
+                        if (tappable)
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            size:  13,
+                            color: widget.color.withOpacity(0.5),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
                   // ── Animated counter value ──────────────────────────
                   AnimatedBuilder(

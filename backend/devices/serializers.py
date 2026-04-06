@@ -31,6 +31,12 @@ class DeviceSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    # Allow clients to send device_type by name (e.g. "router", "switch").
+    device_type_name = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+    )
     assigned_to_username = serializers.CharField(
         source='assigned_to.username',
         read_only=True
@@ -64,7 +70,7 @@ class DeviceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Device
         fields = (
-            'id', 'name', 'device_type', 'device_type_id',
+            'id', 'name', 'device_type', 'device_type_id', 'device_type_name',
             'ip_address', 'mac_address', 'location', 'description',
             'status', 'is_active', 'last_seen',
             'snmp_enabled', 'snmp_community',
@@ -72,6 +78,25 @@ class DeviceSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         )
         read_only_fields = ('created_at', 'updated_at', 'last_seen')
+
+    def _resolve_device_type(self, attrs):
+        if attrs.get('device_type') is not None:
+            return
+        name = (self.initial_data.get('device_type_name') or '').strip()
+        if not name:
+            return
+        device_type = DeviceType.objects.filter(name__iexact=name).first()
+        if device_type is None:
+            device_type = DeviceType.objects.create(name=name.title())
+        attrs['device_type'] = device_type
+
+    def create(self, validated_data):
+        self._resolve_device_type(validated_data)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        self._resolve_device_type(validated_data)
+        return super().update(instance, validated_data)
 
 
 class DeviceStatusSerializer(serializers.Serializer):

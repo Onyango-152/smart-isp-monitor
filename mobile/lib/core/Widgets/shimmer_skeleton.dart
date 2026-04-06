@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 
-/// A reusable shimmer-animated skeleton placeholder.
+/// A reusable skeleton placeholder with optional shimmer animation.
 ///
 /// Use the named constructors for common dashboard / list layouts,
 /// or compose manually with rows of [SkeletonBox].
 class ShimmerSkeleton extends StatelessWidget {
   final Widget child;
-  const ShimmerSkeleton({super.key, required this.child});
+  final bool   animate;
+  const ShimmerSkeleton({super.key, required this.child, this.animate = true});
 
   // ── Named constructors for common layouts ─────────────────────────────────
 
   /// Dashboard: hero strip + summary row + 3 list items.
-  static Widget dashboard() {
-    return const ShimmerSkeleton(
+  static Widget dashboard({bool animate = true}) {
+    return ShimmerSkeleton(
+      animate: animate,
       child: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -60,8 +62,9 @@ class ShimmerSkeleton extends StatelessWidget {
   }
 
   /// Alert list: filter row + 5 alert card skeletons.
-  static Widget alertList() {
-    return const ShimmerSkeleton(
+  static Widget alertList({bool animate = true}) {
+    return ShimmerSkeleton(
+      animate: animate,
       child: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -94,8 +97,9 @@ class ShimmerSkeleton extends StatelessWidget {
   }
 
   /// Device list: search bar + filter row + 5 device card skeletons.
-  static Widget deviceList() {
-    return const ShimmerSkeleton(
+  static Widget deviceList({bool animate = true}) {
+    return ShimmerSkeleton(
+      animate: animate,
       child: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -129,8 +133,9 @@ class ShimmerSkeleton extends StatelessWidget {
   }
 
   /// Device detail: header + metrics grid + chart placeholder.
-  static Widget deviceDetail() {
-    return const ShimmerSkeleton(
+  static Widget deviceDetail({bool animate = true}) {
+    return ShimmerSkeleton(
+      animate: animate,
       child: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
@@ -165,6 +170,7 @@ class ShimmerSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!animate) return child;
     return _ShimmerWrapper(child: child);
   }
 }

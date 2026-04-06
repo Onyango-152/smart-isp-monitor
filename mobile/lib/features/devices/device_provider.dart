@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants.dart';
 import '../../core/utils.dart';
@@ -58,20 +59,24 @@ class DeviceProvider extends ChangeNotifier {
     notifyListeners();
 
     // Show cached data immediately for instant UI
-    try {
-      final cached = await DatabaseHelper.instance.getCachedDevices();
-      if (cached.isNotEmpty) {
-        _allDevices = cached;
-        _applyFilters();
-        notifyListeners();
-      }
-    } catch (_) {/* cache miss — no-op */}
+    if (!kIsWeb) {
+      try {
+        final cached = await DatabaseHelper.instance.getCachedDevices();
+        if (cached.isNotEmpty) {
+          _allDevices = cached;
+          _applyFilters();
+          notifyListeners();
+        }
+      } catch (_) {/* cache miss — no-op */}
+    }
 
     try {
       _allDevices = await ApiClient.getDevices();
       _latestMetrics = await ApiClient.getMetrics();
       _applyFilters();
-      await DatabaseHelper.instance.cacheDevices(_allDevices);
+      if (!kIsWeb) {
+        await DatabaseHelper.instance.cacheDevices(_allDevices);
+      }
     } catch (e) {
       if (_allDevices.isEmpty) {
         _allDevices = List<DeviceModel>.from(DummyData.devices);
@@ -129,13 +134,51 @@ class DeviceProvider extends ChangeNotifier {
   /// Adds a new device locally. On integration day replace with POST API call.
   Future<bool> addDevice(DeviceModel device) async {
     try {
-      await Future.delayed(const Duration(milliseconds: 400));
+      _errorMessage = null;
+      // Optimistic add for fast UI response.
       _allDevices = [..._allDevices, device];
       _applyFilters();
       notifyListeners();
-      await DatabaseHelper.instance.upsertDevice(device);
-      return true;
+      if (!kIsWeb) {
+        await DatabaseHelper.instance.upsertDevice(device);
+      }
+      final saved = await _persistCreate(device);
+      if (!saved) {
+        _allDevices = _allDevices.where((d) => d.id != device.id).toList();
+        _applyFilters();
+        notifyListeners();
+        if (!kIsWeb) {
+          await DatabaseHelper.instance.deleteDevice(device.id);
+        }
+      }
+      return saved;
     } catch (_) {
+      _errorMessage = 'Failed to save device locally.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> _persistCreate(DeviceModel device) async {
+    try {
+      final created = await ApiClient.createDevice(device);
+      _allDevices = _allDevices
+          .map((d) => d.id == device.id ? created : d)
+          .toList();
+      _applyFilters();
+      notifyListeners();
+      if (!kIsWeb) {
+        await DatabaseHelper.instance.deleteDevice(device.id);
+        await DatabaseHelper.instance.upsertDevice(created);
+      }
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _errorMessage = 'Failed to save device to server.';
+      notifyListeners();
       return false;
     }
   }

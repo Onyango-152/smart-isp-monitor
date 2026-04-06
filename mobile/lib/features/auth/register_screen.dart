@@ -71,7 +71,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final cs     = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: SafeArea(
@@ -156,58 +155,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 },
               ),
 
-              // ── Role picker ───────────────────────────────────────────────
-              Text(
-                'I am a…',
-                style: TextStyle(
-                  fontSize:   14,
-                  fontWeight: FontWeight.w600,
-                  color:      cs.onSurface,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  _RoleTile(
-                    label:    'Customer',
-                    icon:     Icons.person_outline,
-                    value:    AppConstants.roleCustomer,
-                    selected: _selectedRole == AppConstants.roleCustomer,
-                    isDark:   isDark,
-                    onTap:    () => setState(
-                        () => _selectedRole = AppConstants.roleCustomer),
-                  ),
-                  const SizedBox(width: 8),
-                  _RoleTile(
-                    label:    'Technician',
-                    icon:     Icons.build_outlined,
-                    value:    AppConstants.roleTechnician,
-                    selected: _selectedRole == AppConstants.roleTechnician,
-                    isDark:   isDark,
-                    onTap:    () => setState(
-                        () => _selectedRole = AppConstants.roleTechnician),
-                  ),
-                  const SizedBox(width: 8),
-                  _RoleTile(
-                    label:    'Manager',
-                    icon:     Icons.business_center_outlined,
-                    value:    AppConstants.roleManager,
-                    selected: _selectedRole == AppConstants.roleManager,
-                    isDark:   isDark,
-                    onTap:    () => setState(
-                        () => _selectedRole = AppConstants.roleManager),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 24),
-
               // ── Form ──────────────────────────────────────────────────────
               Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+
+                    // Role dropdown
+                    Text(
+                      'I am a…',
+                      style: TextStyle(
+                        fontSize:   14,
+                        fontWeight: FontWeight.w600,
+                        color:      cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: _selectedRole,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.badge_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: AppConstants.roleCustomer,
+                          child: Text('Customer'),
+                        ),
+                        DropdownMenuItem(
+                          value: AppConstants.roleTechnician,
+                          child: Text('Technician'),
+                        ),
+                        DropdownMenuItem(
+                          value: AppConstants.roleManager,
+                          child: Text('Manager'),
+                        ),
+                      ],
+                      onChanged: (value) => setState(
+                          () => _selectedRole = value ?? AppConstants.roleCustomer),
+                      validator: (v) => (v == null || v.isEmpty)
+                          ? 'Please select a role'
+                          : null,
+                    ),
+
+                    const SizedBox(height: 16),
 
                     // First name + Last name
                     Row(
@@ -218,6 +209,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             controller: _firstNameCtrl,
                             hint:       'First name',
                             icon:       Icons.badge_outlined,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'First name is required';
+                              }
+                              return null;
+                            },
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -227,6 +224,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             controller: _lastNameCtrl,
                             hint:       'Last name',
                             icon:       Icons.badge_outlined,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Last name is required';
+                              }
+                              return null;
+                            },
                           ),
                         ),
                       ],
@@ -361,65 +364,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
 
               const SizedBox(height: 32),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Role selection tile ────────────────────────────────────────────────────────
-class _RoleTile extends StatelessWidget {
-  final String  label;
-  final IconData icon;
-  final String  value;
-  final bool    selected;
-  final bool    isDark;
-  final VoidCallback onTap;
-
-  const _RoleTile({
-    required this.label,
-    required this.icon,
-    required this.value,
-    required this.selected,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final Color bg     = selected
-        ? (isDark ? AppColors.primaryDarkSurface : AppColors.primarySurface)
-        : Theme.of(context).colorScheme.surface;
-    final Color border = selected ? AppColors.primary : Colors.transparent;
-    final Color fg     = selected
-        ? AppColors.primary
-        : Theme.of(context).colorScheme.onSurface.withOpacity(0.6);
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding:  const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color:        bg,
-            borderRadius: BorderRadius.circular(12),
-            border:       Border.all(color: border, width: 1.8),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: fg, size: 26),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize:   12,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color:      fg,
-                ),
-              ),
             ],
           ),
         ),

@@ -7,6 +7,7 @@ import 'services/connectivity_provider.dart';
 import 'features/alerts/alert_detail_screen.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/auth/email_verify_screen.dart';
+import 'features/auth/forgot_password_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/register_screen.dart';
 import 'features/customer/customer_shell.dart';
@@ -21,8 +22,11 @@ import 'features/splash/splash_screen.dart';
 import 'features/clients/client_form_screen.dart';
 import 'features/tasks/task_form_screen.dart';
 import 'features/troubleshoot/troubleshoot_screen.dart';
+import 'services/notification_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.init();
   runApp(const SmartISPApp());
 }
 
@@ -69,6 +73,8 @@ class SmartISPApp extends StatelessWidget {
         return _slideRoute(settings, const RegisterScreen());
       case AppConstants.verifyEmailRoute:
         return _slideRoute(settings, const EmailVerifyScreen());
+      case AppConstants.forgotPasswordRoute:
+        return _slideRoute(settings, const ForgotPasswordScreen());
 
       // Role shells — fade in, no directional entry
       case AppConstants.technicianHomeRoute:

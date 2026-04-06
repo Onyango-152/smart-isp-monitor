@@ -20,8 +20,7 @@ class DeviceFormScreen extends StatefulWidget {
   State<DeviceFormScreen> createState() => _DeviceFormScreenState();
 }
 
-class _DeviceFormScreenState extends State<DeviceFormScreen>
-    with SingleTickerProviderStateMixin {
+class _DeviceFormScreenState extends State<DeviceFormScreen> {
 
   final _formKey = GlobalKey<FormState>();
 
@@ -38,14 +37,10 @@ class _DeviceFormScreenState extends State<DeviceFormScreen>
   bool   _snmpEnabled  = true;
   bool   _isActive     = true;
   bool   _isSaving     = false;
+  String? _saveError;
 
   DeviceModel? _existingDevice;
   bool get _isEditing => _existingDevice != null;
-
-  // ── Animation ─────────────────────────────────────────────────────────────
-  late final AnimationController _animCtrl;
-  late final Animation<double>   _fadeAnim;
-  late final Animation<Offset>   _slideAnim;
 
   @override
   void initState() {
@@ -58,15 +53,6 @@ class _DeviceFormScreenState extends State<DeviceFormScreen>
     _descriptionCtrl   = TextEditingController();
     _snmpCommunityCtrl = TextEditingController(text: 'public');
 
-    _animCtrl = AnimationController(
-      vsync:    this,
-      duration: const Duration(milliseconds: 500),
-    );
-    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.04),
-      end:   Offset.zero,
-    ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
   }
 
   @override
@@ -87,13 +73,11 @@ class _DeviceFormScreenState extends State<DeviceFormScreen>
         _snmpEnabled = args.snmpEnabled;
         _isActive    = args.isActive;
       }
-      _animCtrl.forward();
     }
   }
 
   @override
   void dispose() {
-    _animCtrl.dispose();
     _nameCtrl.dispose();
     _ipCtrl.dispose();
     _macCtrl.dispose();
@@ -109,44 +93,58 @@ class _DeviceFormScreenState extends State<DeviceFormScreen>
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isSaving = true);
+    setState(() {
+      _isSaving = true;
+      _saveError = null;
+    });
+    String? errorMessage;
 
-    final provider = context.read<DeviceProvider>();
-    final now = DateTime.now().toUtc().toIso8601String();
+    try {
+      final provider = context.read<DeviceProvider>();
+      final now = DateTime.now().toUtc().toIso8601String();
 
-    final device = DeviceModel(
-      id:            _existingDevice?.id ?? provider.nextId,
-      name:          _nameCtrl.text.trim(),
-      ipAddress:     _ipCtrl.text.trim(),
-      macAddress:    _macCtrl.text.trim().isEmpty ? null : _macCtrl.text.trim(),
-      deviceType:    _deviceType,
-      status:        _existingDevice?.status ?? AppConstants.statusUnknown,
-      location:      _locationCtrl.text.trim().isEmpty
-          ? null : _locationCtrl.text.trim(),
-      description:   _descriptionCtrl.text.trim().isEmpty
-          ? null : _descriptionCtrl.text.trim(),
-      snmpEnabled:   _snmpEnabled,
-      snmpCommunity: _snmpCommunityCtrl.text.trim(),
-      isActive:      _isActive,
-      lastSeen:      _existingDevice?.lastSeen,
-      createdAt:     _existingDevice?.createdAt ?? now,
-    );
-
-    final success = _isEditing
-        ? await provider.updateDevice(device)
-        : await provider.addDevice(device);
-
-    if (!mounted) return;
-    setState(() => _isSaving = false);
-
-    if (success) {
-      Navigator.of(context).pop(true);
-    } else {
-      AppUtils.showSnackbar(
-        context,
-        'Failed to ${_isEditing ? "update" : "add"} device. Try again.',
-        isError: true,
+      final device = DeviceModel(
+        id:            _existingDevice?.id ?? provider.nextId,
+        name:          _nameCtrl.text.trim(),
+        ipAddress:     _ipCtrl.text.trim(),
+        macAddress:    _macCtrl.text.trim().isEmpty
+            ? null : _macCtrl.text.trim(),
+        deviceType:    _deviceType,
+        status:        _existingDevice?.status ?? AppConstants.statusUnknown,
+        location:      _locationCtrl.text.trim().isEmpty
+            ? null : _locationCtrl.text.trim(),
+        description:   _descriptionCtrl.text.trim().isEmpty
+            ? null : _descriptionCtrl.text.trim(),
+        snmpEnabled:   _snmpEnabled,
+        snmpCommunity: _snmpCommunityCtrl.text.trim(),
+        isActive:      _isActive,
+        lastSeen:      _existingDevice?.lastSeen,
+        createdAt:     _existingDevice?.createdAt ?? now,
       );
+
+      final success = _isEditing
+          ? await provider.updateDevice(device)
+          : await provider.addDevice(device);
+
+      if (!mounted) return;
+
+      if (success) {
+        Navigator.of(context).pop(true);
+        return;
+      }
+
+      errorMessage = provider.errorMessage;
+    } catch (_) {
+      errorMessage = null;
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+
+    if (mounted) {
+      final message = errorMessage ??
+          'Failed to ${_isEditing ? "update" : "add"} device. Try again.';
+      setState(() => _saveError = message);
+      AppUtils.showSnackbar(context, message, isError: true);
     }
   }
 
@@ -157,30 +155,36 @@ class _DeviceFormScreenState extends State<DeviceFormScreen>
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
+        backgroundColor: AppColors.bg(context),
         appBar: _buildAppBar(),
-        body: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildBasicInfoSection(),
-                    const SizedBox(height: 20),
-                    _buildNetworkSection(),
-                    const SizedBox(height: 20),
-                    _buildSnmpSection(),
-                    const SizedBox(height: 20),
-                    _buildDetailsSection(),
-                    const SizedBox(height: 28),
-                    _buildSaveButton(),
-                  ],
-                ),
-              ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildBasicInfoSection(),
+                const SizedBox(height: 20),
+                _buildNetworkSection(),
+                const SizedBox(height: 20),
+                _buildSnmpSection(),
+                const SizedBox(height: 20),
+                _buildDetailsSection(),
+                const SizedBox(height: 28),
+                if (_saveError != null) ...[
+                  Text(
+                    _saveError!,
+                    style: const TextStyle(
+                      color: AppColors.offline,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _buildSaveButton(),
+              ],
             ),
           ),
         ),
@@ -206,12 +210,12 @@ class _DeviceFormScreenState extends State<DeviceFormScreen>
         ),
       ),
       leading: IconButton(
-        icon: const Icon(Icons.close_rounded, color: Colors.white),
+        icon: const Icon(Icons.close_rounded, color: AppColors.textOnDark),
         onPressed: () => Navigator.of(context).pop(),
       ),
       title: Text(
         _isEditing ? 'Edit Device' : 'Add Device',
-        style: const TextStyle(color: Colors.white),
+        style: const TextStyle(color: AppColors.textOnDark),
       ),
     );
   }
@@ -418,13 +422,13 @@ class _DeviceFormScreenState extends State<DeviceFormScreen>
                   const SizedBox(
                     width: 20, height: 20,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                        strokeWidth: 2, color: AppColors.textOnDark),
                   ),
                   const SizedBox(width: 12),
                   const Text(
                     'Saving…',
                     style: TextStyle(
-                      color: Colors.white, fontSize: 16,
+                      color: AppColors.textOnDark, fontSize: 16,
                       fontWeight: FontWeight.w700),
                   ),
                 ] else ...[
@@ -432,13 +436,13 @@ class _DeviceFormScreenState extends State<DeviceFormScreen>
                     _isEditing
                         ? Icons.check_rounded
                         : Icons.add_rounded,
-                    color: Colors.white, size: 22,
+                    color: AppColors.textOnDark, size: 22,
                   ),
                   const SizedBox(width: 10),
                   Text(
                     _isEditing ? 'Save Changes' : 'Add Device',
                     style: const TextStyle(
-                      color: Colors.white, fontSize: 16,
+                      color: AppColors.textOnDark, fontSize: 16,
                       fontWeight: FontWeight.w700),
                   ),
                 ],

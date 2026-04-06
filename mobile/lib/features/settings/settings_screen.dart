@@ -72,8 +72,10 @@ class _SettingsContent extends StatelessWidget {
     final settings = context.watch<SettingsProvider>();
     final theme    = context.watch<ThemeProvider>();
     final user     = auth.currentUser;
+    final isCustomer = (user?.role == AppConstants.roleCustomer);
 
     return Scaffold(
+      backgroundColor: AppColors.bg(context),
 
 
       // ── App Bar ───────────────────────────────────────────────────────────
@@ -93,7 +95,7 @@ class _SettingsContent extends StatelessWidget {
           ),
         ),
         title: const Text('Settings',
-            style: TextStyle(color: Colors.white)),
+          style: TextStyle(color: AppColors.textOnDark)),
       ),
 
       body: ListView(
@@ -112,10 +114,8 @@ class _SettingsContent extends StatelessWidget {
 
           // ── Notifications ──────────────────────────────────────────────
           const _SectionTitle('Notifications'),
-          _buildCard([
+          _buildCard(context, [
             _SettingsTile(
-              icon:      Icons.notifications_active_rounded,
-              iconColor: AppColors.primary,
               title:    'Push Alerts',
               subtitle: 'Receive push notifications for network alerts',
               trailing: Switch(
@@ -124,23 +124,20 @@ class _SettingsContent extends StatelessWidget {
                 activeColor: AppColors.primary,
               ),
             ),
-            _SettingsTile(
-              icon:      Icons.priority_high_rounded,
-              iconColor: AppUtils.severityColor(AppConstants.severityCritical),
-              title:     'Critical Alerts Only',
-              subtitle:  'Only notify for critical severity alerts',
-              enabled:   settings.pushAlerts,
-              trailing: Switch(
-                value:     settings.pushAlerts ? settings.pushCriticalOnly : false,
-                onChanged: settings.pushAlerts
-                    ? (_) => settings.toggle('pushCriticalOnly')
-                    : null,
-                activeColor: AppColors.primary,
+            if (!isCustomer)
+              _SettingsTile(
+                title:     'Critical Alerts Only',
+                subtitle:  'Only notify for critical severity alerts',
+                enabled:   settings.pushAlerts,
+                trailing: Switch(
+                  value:     settings.pushAlerts ? settings.pushCriticalOnly : false,
+                  onChanged: settings.pushAlerts
+                      ? (_) => settings.toggle('pushCriticalOnly')
+                      : null,
+                  activeColor: AppColors.primary,
+                ),
               ),
-            ),
             _SettingsTile(
-              icon:      Icons.info_rounded,
-              iconColor: AppColors.primaryLight,
               title:     'System Notifications',
               subtitle:  'Monitoring cycles, device changes, and system events',
               isLast:    true,
@@ -156,10 +153,8 @@ class _SettingsContent extends StatelessWidget {
 
           // ── Display ────────────────────────────────────────────────────
           const _SectionTitle('Display'),
-          _buildCard([
+          _buildCard(context, [
             _SettingsTile(
-              icon:      Icons.dark_mode_rounded,
-              iconColor: AppColors.primaryDark,
               title:     'Dark Mode',
               subtitle:  'Switch to a dark colour scheme',
               trailing: Switch(
@@ -168,36 +163,32 @@ class _SettingsContent extends StatelessWidget {
                 value:     theme.isDarkMode,
                 onChanged: (val) => theme.setDarkMode(val),
               ),
+              isLast: true,
             ),
-            _SettingsTile(
-              icon:      Icons.view_list_rounded,
-              iconColor: AppColors.primaryLight,
-              title:     'Compact Device List',
-              subtitle:  'Show smaller device rows to fit more on screen',
-              isLast:    true,
-              trailing: Switch(
-                value:      settings.compactList,
-                onChanged:  (_) => settings.toggle('compactList'),
-                activeColor: AppColors.primary,
+            if (!isCustomer)
+              _SettingsTile(
+                title:     'Compact Device List',
+                subtitle:  'Show smaller device rows to fit more on screen',
+                isLast:    true,
+                trailing: Switch(
+                  value:      settings.compactList,
+                  onChanged:  (_) => settings.toggle('compactList'),
+                  activeColor: AppColors.primary,
+                ),
               ),
-            ),
           ]),
 
           const SizedBox(height: 4),
 
           // ── Monitoring ─────────────────────────────────────────────────
           const _SectionTitle('Monitoring'),
-          _buildCard([
+          _buildCard(context, [
             _SettingsTile(
-              icon:      Icons.timer_rounded,
-              iconColor: AppColors.degraded,
               title:     'Refresh Interval',
               subtitle:  'How often the dashboard auto-refreshes',
               trailing:  _RefreshIntervalSelector(settings: settings),
             ),
             _SettingsTile(
-              icon:      Icons.check_circle_rounded,
-              iconColor: AppColors.online,
               title:     'Auto-Acknowledge Low Alerts',
               subtitle:  'Automatically acknowledge low-severity alerts',
               isLast:    true,
@@ -213,20 +204,16 @@ class _SettingsContent extends StatelessWidget {
 
           // ── System ─────────────────────────────────────────────────────
           const _SectionTitle('System'),
-          _buildCard([
+          _buildCard(context, [
+            if (!isCustomer)
+              _SettingsTile(
+                title:     'API Endpoint',
+                subtitle:  AppConstants.baseUrl,
+                trailing:  const SizedBox.shrink(),
+                onTap: () =>
+                    AppUtils.showSnackbar(context, 'Endpoint config coming soon.'),
+              ),
             _SettingsTile(
-              icon:      Icons.link_rounded,
-              iconColor: AppColors.primaryLight,
-              title:     'API Endpoint',
-              subtitle:  AppConstants.baseUrl,
-              trailing:  Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textHintOf(context)),
-              onTap: () =>
-                  AppUtils.showSnackbar(context, 'Endpoint config coming soon.'),
-            ),
-            _SettingsTile(
-              icon:      Icons.info_outline_rounded,
-              iconColor: AppColors.textSecondary,
               title:     'App Version',
               subtitle:  'ISP Monitor v${AppConstants.appVersion}',
               trailing: Container(
@@ -242,13 +229,10 @@ class _SettingsContent extends StatelessWidget {
               ),
             ),
             _SettingsTile(
-              icon:      Icons.bug_report_rounded,
-              iconColor: AppColors.textSecondary,
               title:     'Send Feedback',
               subtitle:  'Report a bug or suggest a feature',
               isLast:    true,
-              trailing:  Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textHintOf(context)),
+              trailing:  const SizedBox.shrink(),
               onTap: () {
                 AppUtils.haptic();
                 AppUtils.showSnackbar(
@@ -262,20 +246,19 @@ class _SettingsContent extends StatelessWidget {
           // ── Sign Out ───────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: OutlinedButton.icon(
+            child: OutlinedButton(
               onPressed: () {
                 AppUtils.haptic();
                 _confirmLogout(context, auth);
               },
               style: OutlinedButton.styleFrom(
                 minimumSize:     const Size(double.infinity, 52),
-                foregroundColor: AppColors.offline,
-                side:  const BorderSide(color: AppColors.offline),
+                foregroundColor: AppColors.primary,
+                side:  const BorderSide(color: AppColors.primary),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
               ),
-              icon:  const Icon(Icons.logout_rounded),
-              label: const Text('Sign Out',
+              child: const Text('Sign Out',
                   style: TextStyle(
                       fontSize:   16,
                       fontWeight: FontWeight.w600)),
@@ -295,7 +278,7 @@ class _SettingsContent extends StatelessWidget {
               },
               child: Text('Delete Account',
                   style: AppTextStyles.body.copyWith(
-                      color: AppColors.offline)),
+                      color: AppColors.primary)),
             ),
           ),
         ],
@@ -338,10 +321,10 @@ class _SettingsContent extends StatelessWidget {
           Container(
             width:  56, height: 56,
             decoration: BoxDecoration(
-              color:        Colors.white.withOpacity(0.2),
+              color:        AppColors.textOnDark.withOpacity(0.2),
               borderRadius: BorderRadius.circular(28),
               border: Border.all(
-                  color: Colors.white.withOpacity(0.4), width: 2),
+                  color: AppColors.textOnDark.withOpacity(0.4), width: 2),
             ),
             child: Center(
               child: Text(
@@ -349,7 +332,7 @@ class _SettingsContent extends StatelessWidget {
                 style: const TextStyle(
                   fontSize:   24,
                   fontWeight: FontWeight.bold,
-                  color:      Colors.white,
+                  color:      AppColors.textOnDark,
                 ),
               ),
             ),
@@ -363,38 +346,27 @@ class _SettingsContent extends StatelessWidget {
               children: [
                 Text(name,
                     style: AppTextStyles.heading2.copyWith(
-                        color: Colors.white)),
+                        color: AppColors.textOnDark)),
                 const SizedBox(height: 2),
                 Text(email,
                     style: AppTextStyles.bodySmall.copyWith(
-                        color: Colors.white.withOpacity(0.75))),
+                        color: AppColors.textOnDark.withOpacity(0.75))),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
-                    color:        Colors.white.withOpacity(0.2),
+                    color:        AppColors.textOnDark.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: Colors.white.withOpacity(0.35)),
+                        color: AppColors.textOnDark.withOpacity(0.35)),
                   ),
                   child: Text(roleLabel,
                       style: AppTextStyles.label.copyWith(
-                          color: Colors.white)),
+                          color: AppColors.textOnDark)),
                 ),
               ],
             ),
-          ),
-
-          // Edit button
-          IconButton(
-            icon: const Icon(Icons.edit_rounded,
-                color: Colors.white70, size: 20),
-            onPressed: () {
-              AppUtils.haptic();
-              AppUtils.showSnackbar(
-                  context, 'Profile editing coming soon.');
-            },
           ),
         ],
       ),
@@ -403,12 +375,13 @@ class _SettingsContent extends StatelessWidget {
 
   // ── Card wrapper ───────────────────────────────────────────────────────────
 
-  static Widget _buildCard(List<Widget> children) {
+  static Widget _buildCard(BuildContext context, List<Widget> children) {
     return Container(
       margin:     const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color:        Colors.white,
+        color:        AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
+        border:       Border.all(color: AppColors.primary.withOpacity(0.12)),
         boxShadow:    AppShadows.card,
       ),
       child: Column(children: children),
@@ -437,7 +410,7 @@ class _SettingsContent extends StatelessWidget {
                   .pushReplacementNamed(AppConstants.loginRoute);
             },
             style: TextButton.styleFrom(
-                foregroundColor: AppColors.offline),
+                foregroundColor: AppColors.primary),
             child: const Text('Sign Out'),
           ),
         ],
@@ -461,7 +434,7 @@ class _SectionTitle extends StatelessWidget {
       child: Text(
         title.toUpperCase(),
         style: AppTextStyles.caption.copyWith(
-          color:         AppColors.textHint,
+          color:         AppColors.primary,
           fontWeight:    FontWeight.w700,
           letterSpacing: 1.2,
         ),
@@ -475,21 +448,17 @@ class _SectionTitle extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SettingsTile extends StatelessWidget {
-  final IconData     icon;
-  final Color        iconColor;
   final String       title;
   final String       subtitle;
-  final Widget       trailing;
+  final Widget?      trailing;
   final bool         isLast;
   final bool         enabled;
   final VoidCallback? onTap;
 
   const _SettingsTile({
-    required this.icon,
-    required this.iconColor,
     required this.title,
     required this.subtitle,
-    required this.trailing,
+    this.trailing,
     this.isLast  = false,
     this.enabled = true,
     this.onTap,
@@ -517,17 +486,6 @@ class _SettingsTile extends StatelessWidget {
                   horizontal: 16, vertical: 13),
               child: Row(
                 children: [
-                  // Icon container
-                  Container(
-                    width:  36, height: 36,
-                    decoration: BoxDecoration(
-                      color:        iconColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(icon, color: iconColor, size: 18),
-                  ),
-                  const SizedBox(width: 12),
-
                   // Title + subtitle
                   Expanded(
                     child: Column(
@@ -542,15 +500,18 @@ class _SettingsTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  trailing,
+                  if (trailing != null) ...[
+                    const SizedBox(width: 8),
+                    trailing!,
+                  ],
                 ],
               ),
             ),
           ),
         ),
         if (!isLast)
-          const Divider(height: 1, indent: 64, endIndent: 16),
+          Divider(height: 1, indent: 16, endIndent: 16,
+              color: AppColors.primary.withOpacity(0.15)),
       ],
     );
   }
@@ -573,8 +534,7 @@ class _RefreshIntervalSelector extends StatelessWidget {
       value:     settings.refreshInterval,
       underline: const SizedBox.shrink(),
       style:     AppTextStyles.label.copyWith(color: AppColors.primary),
-      icon: const Icon(Icons.keyboard_arrow_down_rounded,
-          color: AppColors.primary, size: 18),
+      icon: const SizedBox.shrink(),
       onChanged: (v) {
         if (v != null) {
           AppUtils.hapticSelect();

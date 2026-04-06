@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/utils.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../data/dummy_data.dart';
+import '../../data/models/alert_model.dart';
 import '../../services/api_client.dart';
+import '../../services/notification_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NotificationItem — lightweight in-app notification model.
@@ -94,31 +98,11 @@ class NotificationsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final data = await ApiClient.get('/notifications/');
-      final list = data is List ? data : (data['results'] as List? ?? []);
-
-      _all = list.map((n) {
-        final typeStr = n['type'] as String? ?? 'info';
-        final type = typeStr == 'alert'
-            ? NotificationType.alert
-            : typeStr == 'resolved'
-                ? NotificationType.resolved
-                : typeStr == 'system'
-                    ? NotificationType.system
-                    : NotificationType.info;
-        return NotificationItem(
-          id: n['id'] as int,
-          title: n['title'] as String,
-          body: n['body'] as String,
-          type: type,
-          severity: n['severity'] as String? ?? 'info',
-          timestamp: n['created_at'] as String,
-          deviceName: n['device_name'] as String?,
-          isRead: n['is_read'] as bool? ?? false,
-        );
-      }).toList()
+      final alerts = await ApiClient.getMyAlerts();
+      _all = alerts.map(_fromAlert).toList()
         ..sort((a, b) =>
             DateTime.parse(b.timestamp).compareTo(DateTime.parse(a.timestamp)));
+      await _notifyNewAlerts(alerts);
     } catch (e) {
       _all = DummyData.notifications.map((n) {
         final typeStr = (n['type'] as String? ?? 'info').toLowerCase();
@@ -175,6 +159,62 @@ class NotificationsProvider extends ChangeNotifier {
     _all.clear();
     notifyListeners();
   }
+
+  NotificationItem _fromAlert(AlertModel alert) {
+    final type = alert.isResolved
+        ? NotificationType.resolved
+        : NotificationType.alert;
+    return NotificationItem(
+      id: alert.id,
+      title: _titleForAlert(alert),
+      body: alert.message,
+      type: type,
+      severity: alert.severity,
+      timestamp: alert.triggeredAt,
+      deviceName: alert.deviceName,
+      isRead: alert.isAcknowledged || alert.isResolved,
+    );
+  }
+
+  String _titleForAlert(AlertModel alert) {
+    final type = alert.alertType.toLowerCase();
+    if (type.contains('latency') || type.contains('buffer')) {
+      return 'Buffering detected';
+    }
+    if (type.contains('packet')) {
+      return 'Packet loss detected';
+    }
+    if (type.contains('offline')) {
+      return 'Internet outage detected';
+    }
+    return 'Network alert';
+  }
+
+  Future<void> _notifyNewAlerts(List<AlertModel> alerts) async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastId = prefs.getInt('last_notified_alert_id') ?? 0;
+
+    final pending = alerts
+        .where((a) => a.id > lastId && !a.isResolved)
+        .toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
+
+    int maxId = lastId;
+    for (final alert in pending) {
+      await NotificationService.showNotification(
+        id: alert.id,
+        title: _titleForAlert(alert),
+        body: alert.message,
+      );
+      if (alert.id > maxId) {
+        maxId = alert.id;
+      }
+    }
+
+    if (maxId != lastId) {
+      await prefs.setInt('last_notified_alert_id', maxId);
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -212,7 +252,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               icon: Icons.cloud_off_rounded,
               title: 'Could Not Load Notifications',
               message: provider.errorMessage!,
-              color: AppColors.offline,
+              color: AppColors.primary,
               actionLabel: 'Retry',
               onAction: provider.load,
             );
@@ -256,7 +296,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.offline,
+                  color: AppColors.primary,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -296,10 +336,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     child: Row(
                       children: [
                         Icon(Icons.delete_outline_rounded,
-                            size: 18, color: AppColors.offline),
+                            size: 18, color: AppColors.primary),
                         SizedBox(width: 8),
                         Text('Clear all',
-                            style: TextStyle(color: AppColors.offline)),
+                            style: TextStyle(color: AppColors.primary)),
                       ],
                     ),
                   ),
@@ -468,7 +508,7 @@ class _NotificationTile extends StatelessWidget {
       },
       background: Container(
         alignment: Alignment.centerRight,
-        color: AppColors.offline,
+        color: AppColors.primary,
         padding: const EdgeInsets.only(right: 20),
         child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -572,36 +612,14 @@ class _NotificationTile extends StatelessWidget {
   }
 
   Widget _buildIcon() {
-    final Color fg;
-    final Color bg;
-    final IconData icon;
-
-    switch (item.type) {
-      case NotificationType.alert:
-        fg = AppUtils.severityColor(item.severity);
-        bg = AppUtils.severityBgColor(item.severity);
-        icon = item.severity == AppConstants.severityCritical
-            ? Icons.error_rounded
-            : item.severity == AppConstants.severityHigh
-                ? Icons.warning_rounded
-                : Icons.info_rounded;
-        break;
-      case NotificationType.resolved:
-        fg = AppColors.online;
-        bg = AppColors.onlineLight;
-        icon = Icons.check_circle_rounded;
-        break;
-      case NotificationType.system:
-        fg = AppColors.primary;
-        bg = AppColors.primarySurface;
-        icon = Icons.settings_rounded;
-        break;
-      case NotificationType.info:
-        fg = AppColors.degraded;
-        bg = AppColors.degradedLight;
-        icon = Icons.trending_up_rounded;
-        break;
-    }
+    final Color fg = AppColors.primary;
+    final Color bg = AppColors.primarySurface;
+    final IconData icon = switch (item.type) {
+      NotificationType.alert    => Icons.warning_rounded,
+      NotificationType.resolved => Icons.check_circle_rounded,
+      NotificationType.system   => Icons.settings_rounded,
+      NotificationType.info     => Icons.info_rounded,
+    };
 
     return Container(
       width: 42,

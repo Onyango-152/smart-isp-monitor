@@ -407,8 +407,8 @@ class _HelpAssistantScreenState extends State<HelpAssistantScreen> {
                   const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Help Assistant', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      Text('Always available', style: TextStyle(fontSize: 11, color: Colors.white70)),
+                      Text('Help Assistant', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                      Text('Always available', style: TextStyle(fontSize: 10.5, color: Colors.white70)),
                     ],
                   ),
                 ],
@@ -450,7 +450,7 @@ class _HelpAssistantScreenState extends State<HelpAssistantScreen> {
                 Expanded(
                   child: ListView.builder(
                     controller: _scroll,
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                    padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
                     itemCount: provider.messages.length + (provider.isTyping ? 1 : 0),
                     itemBuilder: (context, i) {
                       if (provider.isTyping && i == provider.messages.length) {
@@ -474,7 +474,7 @@ class _HelpAssistantScreenState extends State<HelpAssistantScreen> {
 
   Widget _buildInputBar(HelpAssistantProvider provider) {
     return Container(
-      padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.fromLTRB(12, 8, 12, 10 + MediaQuery.of(context).padding.bottom),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, -2))],
@@ -489,14 +489,14 @@ class _HelpAssistantScreenState extends State<HelpAssistantScreen> {
               minLines:   1,
               decoration: InputDecoration(
                 hintText:     'Ask me anything about your internet...',
-                hintStyle:    TextStyle(color: AppColors.textHintOf(context)),
+                hintStyle:    TextStyle(fontSize: 13, color: AppColors.textHintOf(context)),
                 filled:       true,
                 fillColor:    AppColors.bg(context),
                 border:       OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide:   BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
               ),
               onSubmitted: (_) => _send(),
             ),
@@ -505,7 +505,7 @@ class _HelpAssistantScreenState extends State<HelpAssistantScreen> {
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             child: Material(
-              color:        provider.isTyping ? AppColors.textHint : AppColors.primary,
+              color:        provider.isTyping ? AppColors.primarySurfaceOf(context) : AppColors.primary,
               borderRadius: BorderRadius.circular(24),
               child: InkWell(
                 borderRadius: BorderRadius.circular(24),
@@ -536,7 +536,7 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUser = message.role == MessageRole.user;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Column(
         crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
@@ -547,16 +547,16 @@ class _MessageBubble extends StatelessWidget {
             children: [
               if (!isUser) ...[
                 Container(
-                  width:  32, height: 32,
+                  width:  28, height: 28,
                   margin: const EdgeInsets.only(right: 8),
                   decoration: const BoxDecoration(
                     color: AppColors.primary, shape: BoxShape.circle),
-                  child: const Icon(Icons.support_agent, color: Colors.white, size: 18),
+                  child: const Icon(Icons.support_agent, color: Colors.white, size: 16),
                 ),
               ],
               Flexible(
                 child: Container(
-                  padding:    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                   decoration: BoxDecoration(
                     color: isUser ? AppColors.primary : Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.only(
@@ -565,24 +565,23 @@ class _MessageBubble extends StatelessWidget {
                       bottomLeft:  Radius.circular(isUser ? 18 : 4),
                       bottomRight: Radius.circular(isUser ? 4 : 18),
                     ),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4)],
                   ),
                   child: Text(
                     message.text,
                     style: TextStyle(
                       color:  isUser ? Colors.white : AppColors.textPrimaryOf(context),
-                      fontSize: 14, height: 1.5,
+                      fontSize: 13.5, height: 1.5,
                     ),
                   ),
                 ),
               ),
               if (isUser) ...[
                 Container(
-                  width:  32, height: 32,
+                  width:  28, height: 28,
                   margin: const EdgeInsets.only(left: 8),
                   decoration: BoxDecoration(
                     color: AppColors.primarySurfaceOf(context), shape: BoxShape.circle),
-                  child: const Icon(Icons.person, color: AppColors.primary, size: 18),
+                  child: const Icon(Icons.person, color: AppColors.primary, size: 16),
                 ),
               ],
             ],
@@ -633,7 +632,7 @@ class _TroubleshootCardState extends State<_TroubleshootCard> {
     final steps = widget.guide.steps;
     return Container(
       margin:  const EdgeInsets.only(left: 40),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color:        AppColors.primarySurfaceOf(context),
         borderRadius: BorderRadius.circular(14),
@@ -649,7 +648,7 @@ class _TroubleshootCardState extends State<_TroubleshootCard> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(widget.guide.title, style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryDark)),
+                  fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.primaryDark)),
               ),
             ],
           ),
@@ -658,7 +657,7 @@ class _TroubleshootCardState extends State<_TroubleshootCard> {
           if (_completedSteps > 0)
             Text(
               '$_completedSteps of ${steps.length} steps done',
-              style: const TextStyle(fontSize: 11, color: AppColors.primaryLight),
+              style: const TextStyle(fontSize: 10.5, color: AppColors.primary),
             ),
           const SizedBox(height: 10),
 
@@ -686,7 +685,7 @@ class _TroubleshootCardState extends State<_TroubleshootCard> {
               onPressed: () => setState(() => _completedSteps = 0),
               icon:  const Icon(Icons.replay, size: 14),
               label: const Text('Start over', style: TextStyle(fontSize: 12)),
-              style: TextButton.styleFrom(foregroundColor: AppColors.primaryLight),
+              style: TextButton.styleFrom(foregroundColor: AppColors.primary),
             ),
           ],
         ],
@@ -725,11 +724,11 @@ class _StepRow extends StatelessWidget {
               width:  26, height: 26,
               decoration: BoxDecoration(
                 color: isDone
-                    ? AppColors.online
-                    : isCurrent ? AppColors.primary : AppColors.primarySurface,
+                    ? AppColors.primary
+                    : isCurrent ? AppColors.primary : AppColors.primarySurfaceOf(context),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isDone ? AppColors.online : isCurrent ? AppColors.primary : AppColors.primaryLight,
+                  color: isDone ? AppColors.primary : AppColors.primary,
                   width: 1.5,
                 ),
               ),
@@ -738,7 +737,7 @@ class _StepRow extends StatelessWidget {
                     ? const Icon(Icons.check, color: Colors.white, size: 14)
                     : Text('$number', style: TextStyle(
                         fontSize: 12, fontWeight: FontWeight.bold,
-                        color: isCurrent ? Colors.white : AppColors.primaryLight,
+                        color: isCurrent ? Colors.white : AppColors.primary,
                       )),
               ),
             ),
@@ -764,7 +763,7 @@ class _StepRow extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
-                        color:        AppColors.online,
+                        color:        AppColors.primary,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text('Mark done ✓', style: TextStyle(
@@ -793,11 +792,11 @@ class _SuggestionChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color:        AppColors.surfaceOf(context),
           borderRadius: BorderRadius.circular(20),
-          border:       Border.all(color: AppColors.primary.withOpacity(0.4)),
+          border:       Border.all(color: AppColors.primary.withOpacity(0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -805,7 +804,7 @@ class _SuggestionChip extends StatelessWidget {
             const Icon(Icons.arrow_forward_ios, size: 10, color: AppColors.primary),
             const SizedBox(width: 6),
             Text(label, style: const TextStyle(
-              fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w500)),
+              fontSize: 11.5, color: AppColors.primary, fontWeight: FontWeight.w500)),
           ],
         ),
       ),
@@ -844,13 +843,13 @@ class _TypingBubbleState extends State<_TypingBubble>
       child: Row(
         children: [
           Container(
-            width: 32, height: 32,
+            width: 28, height: 28,
             decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-            child: const Icon(Icons.support_agent, color: Colors.white, size: 18),
+            child: const Icon(Icons.support_agent, color: Colors.white, size: 16),
           ),
           const SizedBox(width: 8),
           Container(
-            padding:    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding:    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             decoration: BoxDecoration(
               color:        AppColors.surfaceOf(context),
               borderRadius: const BorderRadius.only(
@@ -872,7 +871,7 @@ class _TypingBubbleState extends State<_TypingBubble>
                       child: Container(
                         width: 8, height: 8,
                         decoration: const BoxDecoration(
-                          color: AppColors.primaryLight, shape: BoxShape.circle),
+                          color: AppColors.primary, shape: BoxShape.circle),
                       ),
                     ),
                   );

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
@@ -18,7 +19,6 @@ import '../../features/auth/auth_provider.dart';
 import '../../services/connectivity_provider.dart';
 import 'dashboard_provider.dart';
 import 'technician_shell.dart';
-import '../reports/reports_screen.dart';
 
 /// TechnicianDashboard — main landing screen for the technician role.
 class TechnicianDashboard extends StatefulWidget {
@@ -39,6 +39,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
   late final Animation<double>   _pulseAnim;
 
   Timer? _freshnessTicker;
+  bool _fabVisible = true;
 
   @override
   void initState() {
@@ -151,7 +152,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
           final hasDrawer = Scaffold.maybeOf(ctx)?.hasDrawer ?? false;
           if (!hasDrawer) return const SizedBox.shrink();
           return IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
+            icon: const Icon(Icons.menu_rounded, color: AppColors.textOnDark),
             onPressed: () { AppUtils.haptic(); Scaffold.of(ctx).openDrawer(); },
           );
         },
@@ -179,13 +180,13 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.white.withOpacity(0.25),
-                  Colors.white.withOpacity(0.10),
+                  AppColors.textOnDark.withOpacity(0.25),
+                  AppColors.textOnDark.withOpacity(0.10),
                 ],
               ),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: AppColors.textOnDark.withOpacity(0.2),
                 width: 1,
               ),
             ),
@@ -193,7 +194,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
               child: Text(
                 firstName[0].toUpperCase(),
                 style: const TextStyle(
-                  color:      Colors.white,
+                  color:      AppColors.textOnDark,
                   fontWeight: FontWeight.bold,
                   fontSize:   17,
                 ),
@@ -217,7 +218,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                         : 'Network Operations Centre',
                     style: AppTextStyles.appBarSubtitle.copyWith(
                       fontSize: 11,
-                      color: Colors.white60,
+                      color: AppColors.textOnDark.withOpacity(0.6),
                     ),
                   ),
                 ),
@@ -236,17 +237,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
             },
           ),
         ),
-        IconButton(
-          icon: const Icon(Icons.assessment_outlined, color: Colors.white),
-          tooltip: 'Reports',
-          onPressed: () {
-            AppUtils.haptic();
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ReportsScreen()),
-            );
-          },
-        ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
       ],
     );
   }
@@ -254,26 +245,34 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
   // ── Scroll body ───────────────────────────────────────────────────────────
 
   Widget _buildScrollBody(DashboardProvider dashboard) {
-    return CustomScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      slivers: [
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollUpdateNotification && _fabVisible) {
+          setState(() => _fabVisible = false);
+        } else if (notification is ScrollEndNotification && !_fabVisible) {
+          if (notification.metrics.pixels <= 0) {
+            setState(() => _fabVisible = true);
+          }
+        }
+        return false;
+      },
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
 
         // Hero uptime strip
         SliverToBoxAdapter(child: _buildHeroStrip(dashboard)),
 
-        // 4-column KPI row
-        SliverToBoxAdapter(child: _buildSummaryRow(dashboard)),
-
-        // MTTR · Uptime · Alert Velocity
-        SliverToBoxAdapter(child: _buildMetricStrip(dashboard)),
+        // Quick summary chips
+        SliverToBoxAdapter(child: _buildQuickSummaryRow(dashboard)),
 
         // Critical banner
         if (dashboard.criticalAlerts > 0)
           SliverToBoxAdapter(
               child: _buildCriticalBanner(dashboard.criticalAlerts)),
 
-        // Weekly faults bar chart
-        SliverToBoxAdapter(child: _buildWeeklyChart(dashboard)),
+        // KPI row
+        SliverToBoxAdapter(child: _buildSummaryRow(dashboard)),
 
         // ── Needs Attention — priority queue ─────────────────────────
         SliverToBoxAdapter(
@@ -281,8 +280,6 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
             title:       'Needs Attention',
             subtitle:    '${dashboard.offlineDevices + dashboard.degradedDevices}'
                 ' devices need action',
-            icon:        Icons.priority_high_rounded,
-            iconColor:   AppColors.offline,
             actionLabel: 'See All',
             onAction:    () => TechnicianShell.switchTab(context, 1),
           ),
@@ -319,7 +316,6 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
           child: SectionHeader(
             title:       'Fleet Status',
             subtitle:    '${dashboard.totalDevices} devices monitored',
-            icon:        Icons.router_rounded,
             actionLabel: 'See All',
             onAction:    () => TechnicianShell.switchTab(context, 1),
           ),
@@ -331,8 +327,6 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                   icon:        Icons.router_outlined,
                   title:       'No Devices',
                   message:     'Add your first device to start monitoring.',
-                  actionLabel: 'Add Device',
-                  onAction:    () {},
                 ),
               )
             : SliverList(
@@ -363,8 +357,6 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
             child: SectionHeader(
               title:       'Recent Alerts',
               subtitle:    '${dashboard.activeAlertsCount} unresolved',
-              icon:        Icons.warning_rounded,
-              iconColor:   AppColors.degraded,
               actionLabel: 'See All',
               onAction:    () => TechnicianShell.switchTab(context, 2),
             ),
@@ -383,8 +375,9 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
           ),
         ],
 
-        const SliverToBoxAdapter(child: SizedBox(height: 100)),
-      ],
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ],
+      ),
     );
   }
 
@@ -392,16 +385,6 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
 
   Widget _buildHeroStrip(DashboardProvider dashboard) {
     final uptime = dashboard.networkUptime;
-    final ringColor = uptime >= 99
-        ? Colors.greenAccent
-        : uptime >= 95
-            ? Colors.orangeAccent
-            : Colors.redAccent;
-    final statusColor = uptime >= 99
-        ? AppColors.online
-        : uptime >= 95
-            ? AppColors.degraded
-            : AppColors.offline;
     final label = uptime >= 99
         ? 'Healthy'
         : uptime >= 95
@@ -433,7 +416,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
               height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.05),
+                color: AppColors.textOnDark.withOpacity(0.05),
               ),
             ),
           ),
@@ -445,7 +428,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
               height: 70,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.03),
+                color: AppColors.textOnDark.withOpacity(0.03),
               ),
             ),
           ),
@@ -457,68 +440,36 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
               children: [
                 Row(
                   children: [
-                    // Animated uptime ring with glow
-                    _AnimatedUptimeRing(
-                      uptime: uptime,
-                      ringColor: ringColor,
-                    ),
-                    const SizedBox(width: 18),
-
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Status pill with pulsing dot
-                          Row(
-                            children: [
-                              AnimatedBuilder(
-                                animation: _pulseAnim,
-                                builder: (_, __) => Container(
-                                  width: 9,
-                                  height: 9,
-                                  decoration: BoxDecoration(
-                                    color: statusColor,
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: statusColor.withOpacity(
-                                            _pulseAnim.value * 0.6),
-                                        blurRadius: 8,
-                                        spreadRadius: 1,
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.primarySurfaceOf(context),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: AppColors.primary.withOpacity(0.35),
+                                width: 1,
                               ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: statusColor.withOpacity(0.3),
-                                    width: 0.5,
-                                  ),
-                                ),
-                                child: Text(
-                                  'Network $label',
-                                  style: TextStyle(
-                                    color: ringColor,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
+                            ),
+                            child: Text(
+                              'Network $label',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
                               ),
-                            ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           Text(
                             '${uptime.toStringAsFixed(2)}%',
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: AppColors.textOnDark,
                               fontSize: 28,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -1,
@@ -529,7 +480,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                           Text(
                             'network uptime this week',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
+                              color: AppColors.textOnDark.withOpacity(0.6),
                               fontSize: 11,
                               letterSpacing: 0.3,
                             ),
@@ -547,29 +498,26 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
+                    color: AppColors.textOnDark.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.08),
+                      color: AppColors.textOnDark.withOpacity(0.08),
                     ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _HeroStatChip(
-                        icon: Icons.speed_rounded,
                         value: AppUtils.formatLatency(dashboard.avgLatency),
                         label: 'Avg Latency',
                       ),
                       _heroDivider(),
                       _HeroStatChip(
-                        icon: Icons.warning_amber_rounded,
                         value: '${dashboard.activeAlertsCount}',
                         label: 'Open Alerts',
                       ),
                       _heroDivider(),
                       _HeroStatChip(
-                        icon: Icons.flash_on_rounded,
                         value: '${dashboard.faultsThisWeek}',
                         label: 'Faults',
                       ),
@@ -588,7 +536,33 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
     return Container(
       width: 1,
       height: 28,
-      color: Colors.white.withOpacity(0.12),
+      color: AppColors.textOnDark.withOpacity(0.12),
+    );
+  }
+
+  // ── Quick summary chips ─────────────────────────────────────────────────
+
+  Widget _buildQuickSummaryRow(DashboardProvider dashboard) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _SummaryChip(
+            label: 'Total Devices',
+            value: '${dashboard.totalDevices}',
+          ),
+          _SummaryChip(
+            label: 'Degraded',
+            value: '${dashboard.degradedDevices}',
+          ),
+          _SummaryChip(
+            label: 'Faults',
+            value: '${dashboard.faultsThisWeek}',
+          ),
+        ],
+      ),
     );
   }
 
@@ -600,22 +574,13 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
       child: Row(
         children: [
           Expanded(child: SummaryCard(
-            label:           'Total',
-            value:           '${dashboard.totalDevices}',
-            intValue:        dashboard.totalDevices,
-            icon:            Icons.router_rounded,
-            color:           AppColors.primary,
-            backgroundColor: AppColors.primarySurface,
-            onTap:           () => TechnicianShell.switchTab(context, 1),
-          )),
-          const SizedBox(width: 10),
-          Expanded(child: SummaryCard(
             label:           'Online',
             value:           '${dashboard.onlineDevices}',
             intValue:        dashboard.onlineDevices,
             icon:            Icons.check_circle_rounded,
-            color:           AppColors.online,
-            backgroundColor: AppColors.onlineLight,
+            color:           AppColors.primary,
+            backgroundColor: AppColors.primarySurface,
+            showIcon:        false,
           )),
           const SizedBox(width: 10),
           Expanded(child: SummaryCard(
@@ -623,8 +588,9 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
             value:           '${dashboard.offlineDevices}',
             intValue:        dashboard.offlineDevices,
             icon:            Icons.cancel_rounded,
-            color:           AppColors.offline,
-            backgroundColor: AppColors.offlineLight,
+            color:           AppColors.primary,
+            backgroundColor: AppColors.primarySurface,
+            showIcon:        false,
           )),
           const SizedBox(width: 10),
           Expanded(child: SummaryCard(
@@ -632,10 +598,11 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
             value:           '${dashboard.activeAlertsCount}',
             intValue:        dashboard.activeAlertsCount,
             icon:            Icons.warning_rounded,
-            color:           AppColors.degraded,
-            backgroundColor: AppColors.degradedLight,
+            color:           AppColors.primary,
+            backgroundColor: AppColors.primarySurface,
             showBadge:       dashboard.criticalAlerts > 0,
             onTap:           () => TechnicianShell.switchTab(context, 2),
+            showIcon:        false,
           )),
         ],
       ),
@@ -655,8 +622,6 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
       child: Row(children: [
         // MTTR Card
         Expanded(child: _MetricTile(
-          icon: Icons.timer_outlined,
-          iconColor: AppColors.primary,
           label: 'MTTR',
           value: mttr > 0 ? '${mttr.toStringAsFixed(0)}m' : '—',
           accentColor: AppColors.primary,
@@ -671,31 +636,17 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
         const SizedBox(width: 10),
         // Uptime Card
         Expanded(child: _MetricTile(
-          icon: Icons.signal_cellular_alt_rounded,
-          iconColor: dashboard.networkUptime >= 99
-              ? AppColors.online
-              : dashboard.networkUptime >= 95
-                  ? AppColors.degraded
-                  : AppColors.offline,
           label: 'Uptime',
           value: '${dashboard.networkUptime.toStringAsFixed(1)}%',
-          accentColor: dashboard.networkUptime >= 99
-              ? AppColors.online
-              : dashboard.networkUptime >= 95
-                  ? AppColors.degraded
-                  : AppColors.offline,
+          accentColor: AppColors.primary,
           progress: dashboard.networkUptime / 100,
         )),
         const SizedBox(width: 10),
         // Alert Velocity Card
         Expanded(child: _MetricTile(
-          icon: velocityHigh
-              ? Icons.trending_up_rounded
-              : Icons.trending_down_rounded,
-          iconColor: velocityHigh ? AppColors.offline : AppColors.online,
           label: 'Last Hour',
           value: '$velocity alert${velocity != 1 ? "s" : ""}',
-          accentColor: velocityHigh ? AppColors.offline : AppColors.online,
+          accentColor: AppColors.primary,
           trailing: _TrendChip(
             value: velocityHigh ? 'Above avg' : 'Quieter',
             isPositive: !velocityHigh,
@@ -719,71 +670,14 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
           margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                AppColors.offlineLight,
-                AppColors.offline.withOpacity(0.08),
-              ],
-            ),
+            color: AppColors.surfaceOf(context),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: AppColors.offline
-                  .withOpacity(0.2 + _pulseAnim.value * 0.2),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.offline
-                    .withOpacity(0.08 + _pulseAnim.value * 0.08),
-                blurRadius: 12,
-                spreadRadius: 0,
-              ),
-            ],
+            boxShadow: AppShadows.card,
           ),
           child: child,
         ),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.offline.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  const Icon(Icons.priority_high_rounded,
-                      color: AppColors.offline, size: 22),
-                  Positioned(
-                    right: 6,
-                    top: 4,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: AppColors.offline,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: AppColors.offlineLight, width: 1),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '$count',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 7,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -792,28 +686,18 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                     '$count critical alert${count > 1 ? "s" : ""} '
                     'need attention',
                     style: AppTextStyles.heading3.copyWith(
-                      color: AppColors.offline,
+                      color: AppColors.textPrimaryOf(context),
                       fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text('Tap to view and resolve →',
                       style: AppTextStyles.caption.copyWith(
-                        color: AppColors.offline.withOpacity(0.7),
+                        color: AppColors.textSecondaryOf(context),
                         fontSize: 11,
                       )),
                 ],
               ),
-            ),
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: AppColors.offline.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.arrow_forward_rounded,
-                  color: AppColors.offline, size: 15),
             ),
           ],
         ),
@@ -846,17 +730,6 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
             // Header
             Row(
               children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySurfaceOf(context),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.bar_chart_rounded,
-                      size: 17, color: AppColors.primary),
-                ),
-                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -867,26 +740,6 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                         style: AppTextStyles.caption.copyWith(fontSize: 11),
                       ),
                     ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: dashboard.faultsThisWeek > 10
-                        ? AppColors.offlineLight
-                        : AppColors.onlineLight,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    dashboard.faultsThisWeek > 10 ? 'High' : 'Normal',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: dashboard.faultsThisWeek > 10
-                          ? AppColors.offline
-                          : AppColors.online,
-                    ),
                   ),
                 ),
               ],
@@ -917,15 +770,13 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 5, vertical: 2),
                               decoration: BoxDecoration(
-                                color: isToday
-                                    ? AppColors.primary
-                                    : AppColors.textHint,
+                                color: AppColors.primary,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 '$count',
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.textOnDark,
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -938,17 +789,9 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                             curve: Curves.easeOutCubic,
                             height: barH.clamp(4.0, 62.0),
                             decoration: BoxDecoration(
-                              gradient: isToday
-                                  ? const LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        AppColors.primaryLight,
-                                        AppColors.primary,
-                                      ],
-                                    )
-                                  : null,
-                              color: isToday ? null : AppColors.primarySurfaceOf(context),
+                              color: isToday
+                                  ? AppColors.primary
+                                  : AppColors.primarySurfaceOf(context),
                               borderRadius: BorderRadius.circular(5),
                             ),
                           ),
@@ -959,9 +802,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                                 : _shortDay(f['date'] as String),
                             style: TextStyle(
                               fontSize: 9,
-                              color: isToday
-                                  ? AppColors.primary
-                                  : AppColors.textHintOf(context),
+                              color: AppColors.primary,
                               fontWeight: isToday
                                   ? FontWeight.w700
                                   : FontWeight.w400,
@@ -983,49 +824,25 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
   // ── FAB ───────────────────────────────────────────────────────────────────
 
   Widget _buildFab() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primaryLight,
-            AppColors.primaryDark,
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.4),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => AppUtils.haptic(),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.add_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'Add Device',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
+    return AnimatedSlide(
+      duration: const Duration(milliseconds: 180),
+      offset: _fabVisible ? Offset.zero : const Offset(0, 0.2),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: _fabVisible ? 1 : 0,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 200),
+          scale: _fabVisible ? 1 : 0.95,
+          child: FloatingActionButton.small(
+            onPressed: () {
+              AppUtils.haptic();
+              Navigator.of(context).pushNamed(AppConstants.deviceFormRoute);
+            },
+            tooltip: 'Add Device',
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textOnDark,
+            elevation: 2,
+            child: const Icon(Icons.add_rounded, size: 18),
           ),
         ),
       ),
@@ -1102,29 +919,21 @@ class _AlertPreviewTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = AppUtils.severityColor(alert.severity);
-    final bg    = AppUtils.severityBgColor(alert.severity);
+    final color = AppColors.primary;
+    final bg    = AppColors.primarySurfaceOf(context);
 
     return GestureDetector(
       onTap: () { AppUtils.haptic(); onTap(); },
       child: Container(
         margin:  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color:        Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(14),
-          boxShadow:    AppShadows.card,
-          border:       Border(left: BorderSide(color: color, width: 3)),
+          border:       Border.all(color: AppColors.primary.withOpacity(0.12)),
         ),
         child: Row(
           children: [
-            Container(
-              width:  38, height: 38,
-              decoration: BoxDecoration(
-                  color: bg, borderRadius: BorderRadius.circular(10)),
-              child: Icon(Icons.warning_rounded, color: color, size: 18),
-            ),
-            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1136,21 +945,12 @@ class _AlertPreviewTile extends StatelessWidget {
                             style: AppTextStyles.heading3,
                             overflow: TextOverflow.ellipsis),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: bg,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          AppUtils.severityLabel(alert.severity),
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: color,
-                            letterSpacing: 0.3,
-                          ),
+                      Text(
+                        AppUtils.severityLabel(alert.severity).toUpperCase(),
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
                         ),
                       ),
                     ],
@@ -1169,9 +969,6 @@ class _AlertPreviewTile extends StatelessWidget {
               children: [
                 Text(AppUtils.timeAgo(alert.triggeredAt),
                     style: AppTextStyles.caption.copyWith(fontSize: 10)),
-                const SizedBox(height: 4),
-                  Icon(Icons.chevron_right_rounded,
-                      size: 16, color: AppColors.textHintOf(context)),
               ],
             ),
           ],
@@ -1186,8 +983,6 @@ class _AlertPreviewTile extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MetricTile extends StatelessWidget {
-  final IconData icon;
-  final Color    iconColor;
   final String   label;
   final String   value;
   final Color?   accentColor;
@@ -1195,8 +990,6 @@ class _MetricTile extends StatelessWidget {
   final Widget?  trailing;
 
   const _MetricTile({
-    required this.icon,
-    required this.iconColor,
     required this.label,
     required this.value,
     this.accentColor,
@@ -1216,24 +1009,10 @@ class _MetricTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: Icon(icon, size: 14, color: iconColor),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(label,
-                style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w500),
-                overflow: TextOverflow.ellipsis),
-            ),
-          ]),
-          const SizedBox(height: 8),
+          Text(label,
+            style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w500),
+            overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 6),
           Text(value,
             style: AppTextStyles.heading3.copyWith(fontSize: 15)),
           if (progress != null) ...[
@@ -1243,9 +1022,9 @@ class _MetricTile extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: progress!.clamp(0.0, 1.0),
                 minHeight: 3,
-                backgroundColor: (accentColor ?? iconColor).withOpacity(0.1),
+                backgroundColor: (accentColor ?? AppColors.primary).withOpacity(0.1),
                 valueColor: AlwaysStoppedAnimation<Color>(
-                    accentColor ?? iconColor),
+                    accentColor ?? AppColors.primary),
               ),
             ),
           ],
@@ -1278,68 +1057,21 @@ class _PriorityQueueTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = AppUtils.statusColor(device.status);
     final isOffline   = device.status == AppConstants.statusOffline;
-    final alertColor  = topAlert != null
-        ? AppUtils.severityColor(topAlert!.severity)
-        : null;
 
     return GestureDetector(
       onTap: () { AppUtils.haptic(); onTap(); },
       child: Container(
         margin:  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color:        Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
-          boxShadow:    AppShadows.card,
-          border: Border(
-            left: BorderSide(color: statusColor, width: 4),
-          ),
+          border:       Border.all(color: AppColors.primary.withOpacity(0.12)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Rank badge + Status icon stack
-            Column(
-              children: [
-                Container(
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '#$rank',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        color: statusColor,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  width: 42, height: 42,
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    isOffline
-                        ? Icons.power_off_rounded
-                        : Icons.warning_amber_rounded,
-                    color: statusColor,
-                    size:  22,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 12),
-
             // Device name + alert message
             Expanded(
               child: Column(
@@ -1354,67 +1086,32 @@ class _PriorityQueueTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          isOffline ? 'OFFLINE' : 'DEGRADED',
-                          style: TextStyle(
-                            fontSize:      9,
-                            fontWeight:    FontWeight.w800,
-                            color:         statusColor,
-                            letterSpacing: 0.5,
-                          ),
+                      Text(
+                        isOffline ? 'OFFLINE' : 'DEGRADED',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
                   if (topAlert != null) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: alertColor!.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(6),
+                    Text(
+                      topAlert!.message,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6, height: 6,
-                            decoration: BoxDecoration(
-                              color: alertColor,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              topAlert!.message,
-                              style: AppTextStyles.caption.copyWith(
-                                color: alertColor,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 11,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                   ],
                   Row(
                     children: [
-                      Icon(Icons.lan_rounded,
-                          size: 11, color: AppColors.textHintOf(context)),
-                      const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           '${device.ipAddress}'
@@ -1426,21 +1123,6 @@ class _PriorityQueueTile extends StatelessWidget {
                     ],
                   ),
                 ],
-              ),
-            ),
-            const SizedBox(width: 6),
-
-            Padding(
-              padding: const EdgeInsets.only(top: 14),
-              child: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: AppColors.bg(context),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Icon(Icons.chevron_right_rounded,
-                    size: 16, color: AppColors.textHintOf(context)),
               ),
             ),
           ],
@@ -1467,11 +1149,6 @@ class _FleetDeviceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = AppUtils.statusColor(device.status);
-    final statusBg = AppUtils.statusBgColor(device.status);
-    final latency = latestMetric?.latencyMs;
-    final loss = latestMetric?.packetLossPct;
-
     return GestureDetector(
       onTap: () {
         AppUtils.haptic();
@@ -1479,33 +1156,14 @@ class _FleetDeviceCard extends StatelessWidget {
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: AppShadows.card,
-          border: Border(
-            left: BorderSide(color: statusColor, width: 3.5),
-          ),
+          border: Border.all(color: AppColors.primary.withOpacity(0.12)),
         ),
         child: Row(
           children: [
-            // Device icon
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: statusBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                AppUtils.deviceTypeIcon(device.deviceType),
-                color: statusColor,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-
             // Info column
             Expanded(
               child: Column(
@@ -1522,35 +1180,12 @@ class _FleetDeviceCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: statusColor,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              device.status.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                                color: statusColor,
-                                letterSpacing: 0.4,
-                              ),
-                            ),
-                          ],
+                      Text(
+                        device.status.toUpperCase(),
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
                         ),
                       ),
                     ],
@@ -1564,51 +1199,15 @@ class _FleetDeviceCard extends StatelessWidget {
                     style: AppTextStyles.caption.copyWith(fontSize: 11),
                     overflow: TextOverflow.ellipsis,
                   ),
-
-                  // Metric chips
-                  if (latency != null) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _SmallChip(
-                          icon: Icons.speed_rounded,
-                          label: AppUtils.formatLatency(latency),
-                          color: AppUtils.latencyColor(latency),
-                        ),
-                        if (loss != null && loss > 0) ...[
-                          const SizedBox(width: 6),
-                          _SmallChip(
-                            icon: Icons.broken_image_outlined,
-                            label: '${loss.toStringAsFixed(1)}%',
-                            color: AppColors.offline,
-                          ),
-                        ],
-                        const Spacer(),
-                        if (device.lastSeen != null)
-                          Text(
-                            AppUtils.timeAgo(device.lastSeen),
-                            style: AppTextStyles.caption.copyWith(
-                                fontSize: 10),
-                          ),
-                      ],
+                  if (device.lastSeen != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Last seen ${AppUtils.timeAgo(device.lastSeen)}',
+                      style: AppTextStyles.caption.copyWith(fontSize: 10),
                     ),
                   ],
                 ],
               ),
-            ),
-
-            const SizedBox(width: 6),
-
-            // Chevron
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: AppColors.bg(context),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Icon(Icons.chevron_right_rounded,
-                  size: 16, color: AppColors.textHintOf(context)),
             ),
           ],
         ),
@@ -1617,12 +1216,49 @@ class _FleetDeviceCard extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// _SummaryChip — compact KPI chip
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SummaryChip extends StatelessWidget {
+  final String label;
+  final String value;
+  const _SummaryChip({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.primarySurfaceOf(context),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value,
+            style: AppTextStyles.labelBold.copyWith(color: AppColors.primary),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SmallChip extends StatelessWidget {
-  final IconData icon;
   final String label;
   final Color color;
   const _SmallChip({
-    required this.icon,
     required this.label,
     required this.color,
   });
@@ -1638,8 +1274,6 @@ class _SmallChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 11, color: color),
-          const SizedBox(width: 3),
           Text(
             label,
             style: TextStyle(
@@ -1669,7 +1303,7 @@ class _NotificationBell extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         IconButton(
-          icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+          icon: const Icon(Icons.notifications_outlined, color: AppColors.textOnDark),
           onPressed: onTap,
         ),
         if (count > 0)
@@ -1680,12 +1314,12 @@ class _NotificationBell extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
               decoration: BoxDecoration(
-                color: AppColors.offline,
+                color: AppColors.primary,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.white, width: 1.5),
+                border: Border.all(color: AppColors.textOnDark, width: 1.5),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.offline.withOpacity(0.4),
+                    color: AppColors.primary.withOpacity(0.35),
                     blurRadius: 4,
                   ),
                 ],
@@ -1694,7 +1328,7 @@ class _NotificationBell extends StatelessWidget {
                 child: Text(
                   count > 9 ? '9+' : '$count',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textOnDark,
                     fontSize: 8,
                     fontWeight: FontWeight.w800,
                   ),
@@ -1765,7 +1399,7 @@ class _AnimatedUptimeRingState extends State<_AnimatedUptimeRing>
                 Text(
                   '${widget.uptime.toStringAsFixed(0)}%',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textOnDark,
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                     height: 1.1,
@@ -1774,7 +1408,7 @@ class _AnimatedUptimeRingState extends State<_AnimatedUptimeRing>
                 Text(
                   'uptime',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
+                    color: AppColors.textOnDark.withOpacity(0.6),
                     fontSize: 9,
                     letterSpacing: 0.5,
                   ),
@@ -1806,7 +1440,7 @@ class _RingPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 7
-        ..color = Colors.white.withOpacity(0.12),
+        ..color = AppColors.textOnDark.withOpacity(0.12),
     );
 
     // Progress arc
@@ -1851,12 +1485,10 @@ class _RingPainter extends CustomPainter {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HeroStatChip extends StatelessWidget {
-  final IconData icon;
   final String value;
   final String label;
 
   const _HeroStatChip({
-    required this.icon,
     required this.value,
     required this.label,
   });
@@ -1866,12 +1498,10 @@ class _HeroStatChip extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: Colors.white60),
-        const SizedBox(height: 3),
         Text(
           value,
           style: const TextStyle(
-            color: Colors.white,
+            color: AppColors.textOnDark,
             fontSize: 13,
             fontWeight: FontWeight.w700,
           ),
@@ -1879,7 +1509,7 @@ class _HeroStatChip extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.4),
+            color: AppColors.textOnDark.withOpacity(0.5),
             fontSize: 9,
           ),
         ),
@@ -1899,33 +1529,19 @@ class _TrendChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isPositive ? AppColors.online : AppColors.offline;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: AppColors.primarySurfaceOf(context),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isPositive
-                ? Icons.arrow_downward_rounded
-                : Icons.arrow_upward_rounded,
-            size: 10,
-            color: color,
-          ),
-          const SizedBox(width: 2),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-        ],
+      child: Text(
+        value,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: AppColors.primary,
+        ),
       ),
     );
   }

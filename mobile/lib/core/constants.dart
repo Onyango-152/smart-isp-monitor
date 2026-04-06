@@ -43,6 +43,7 @@ class AppConstants {
   static const String loginRoute          = '/login';
   static const String registerRoute       = '/register';
   static const String verifyEmailRoute    = '/verify-email';
+  static const String forgotPasswordRoute = '/forgot-password';
   static const String technicianHomeRoute = '/technician';
   static const String managerHomeRoute    = '/manager';
   static const String customerHomeRoute   = '/customer';

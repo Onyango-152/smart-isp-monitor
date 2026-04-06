@@ -60,7 +60,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
 
           // Loading
           if (provider.isLoading) {
-            return ShimmerSkeleton.deviceList();
+            return ShimmerSkeleton.deviceList(animate: false);
           }
 
           // Error
@@ -70,6 +70,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
               title:       'Could Not Load Devices',
               message:     provider.errorMessage!,
               color:       AppColors.offline,
+              animate:     false,
               actionLabel: 'Retry',
               onAction:    provider.loadDevices,
             );
@@ -96,11 +97,11 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
             AppUtils.showSnackbar(context, 'Device added successfully');
           }
         },
-        icon:  const Icon(Icons.add_rounded, color: Colors.white),
+          icon:  const Icon(Icons.add_rounded, color: AppColors.textOnDark),
         label: const Text(
           'Add Device',
           style: TextStyle(
-              color:      Colors.white,
+            color:      AppColors.textOnDark,
               fontWeight: FontWeight.w600,
               fontSize:   14),
         ),
@@ -129,20 +130,20 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
       title: Consumer<DeviceProvider>(
         builder: (_, provider, __) => Row(
           children: [
-            const Text('Devices', style: TextStyle(color: Colors.white)),
+            const Text('Devices', style: TextStyle(color: AppColors.textOnDark)),
             if (!provider.isLoading && !provider.hasError) ...[
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color:        Colors.white.withOpacity(0.2),
+                  color:        AppColors.textOnDark.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   '${provider.totalCount}',
                   style: const TextStyle(
-                    color:      Colors.white,
+                    color:      AppColors.textOnDark,
                     fontSize:   12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -155,7 +156,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
       actions: [
         Consumer<DeviceProvider>(
           builder: (_, provider, __) => IconButton(
-            icon:      const Icon(Icons.refresh_rounded, color: Colors.white),
+            icon:      const Icon(Icons.refresh_rounded, color: AppColors.textOnDark),
             onPressed: provider.isLoading ? null : () {
               AppUtils.haptic();
               provider.refresh();
@@ -214,21 +215,21 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
             selected: provider.statusFilter == AppConstants.statusOnline,
             onTap:    () =>
                 provider.setStatusFilter(AppConstants.statusOnline),
-            color:    AppColors.online,
+            color:    AppColors.primary,
           ),
           _FilterChip(
             label:    'Offline',
             selected: provider.statusFilter == AppConstants.statusOffline,
             onTap:    () =>
                 provider.setStatusFilter(AppConstants.statusOffline),
-            color:    AppColors.offline,
+            color:    AppColors.primary,
           ),
           _FilterChip(
             label:    'Degraded',
             selected: provider.statusFilter == AppConstants.statusDegraded,
             onTap:    () =>
                 provider.setStatusFilter(AppConstants.statusDegraded),
-            color:    AppColors.degraded,
+            color:    AppColors.primary,
           ),
 
           // Divider
@@ -319,6 +320,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
             ? 'No devices match "${provider.searchQuery}". Try different keywords.'
             : 'No devices match the selected filters.',
         color:           AppColors.degraded,
+        animate:         false,
         actionLabel:     isSearchEmpty ? 'Clear Search' : 'Clear Filters',
         onAction: () {
           _searchController.clear();
@@ -386,8 +388,7 @@ class _FilterChip extends StatelessWidget {
           AppUtils.hapticSelect();
           onTap();
         },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
+          child: Container(
           padding:  const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
           decoration: BoxDecoration(
             color:        selected
@@ -402,7 +403,7 @@ class _FilterChip extends StatelessWidget {
                 ? []
                 : [
                     BoxShadow(
-                      color:      Colors.black.withOpacity(0.04),
+                      color:      AppColors.dividerOf(context).withOpacity(0.4),
                       blurRadius: 4,
                       offset:     const Offset(0, 1),
                     ),

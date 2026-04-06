@@ -127,13 +127,15 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
                     children: [
                       _buildStatusCard(provider),
-                      const SizedBox(height: 20),
-                      if (provider.myDevice != null) ...[
-                        _buildDeviceCard(provider.myDevice!, provider.myMetric),
-                        const SizedBox(height: 20),
-                      ],
+                      const SizedBox(height: 16),
+                      _buildServiceSummary(provider),
+                      const SizedBox(height: 16),
+                      _buildKpiRow(provider),
+                      const SizedBox(height: 18),
+                      _buildIssueFocus(provider),
+                      const SizedBox(height: 18),
                       _buildQuickActions(context),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
                       _buildRecentIssues(provider),
                     ],
                   ),
@@ -147,11 +149,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
 
   Widget _buildStatusCard(CustomerHomeProvider provider) {
     final healthy  = provider.serviceIsHealthy;
-    final bgColor  = healthy ? AppColors.online : AppColors.severityCritical;
+    final bgColor  = AppColors.primary;
     final icon     = healthy ? Icons.check_circle : Icons.warning_rounded;
-    final endColor = healthy
-        ? const Color(0xFF1B5E20)
-        : const Color(0xFFB71C1C);
+    final endColor = AppColors.primaryDark;
     final subtitle = healthy
         ? 'Your internet connection is working normally.'
         : 'We have detected an issue with your service. Our team is working on it.';
@@ -176,7 +176,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color:      bgColor.withOpacity(0.4),
+              color:      bgColor.withOpacity(0.35),
               blurRadius: 16,
               offset:     const Offset(0, 6),
             ),
@@ -192,6 +192,22 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
                 color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold,
               ),
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                healthy ? 'No current issues' : 'Issue detected',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -225,91 +241,181 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
     );
   }
 
-  // ── Device Card ──────────────────────────────────────────────────────────
-  // Metrics come from MetricModel (latencyMs, packetLossPct, uptimeSeconds),
-  // not from DeviceModel which only holds identity/config fields.
+  // ── Service Summary ─────────────────────────────────────────────────────-
 
-  Widget _buildDeviceCard(DeviceModel device, MetricModel? metric) {
-    // Convert uptimeSeconds → percentage of 30 days (2592000 s) for display.
-    // If null (device offline), show '--'.
+  Widget _buildServiceSummary(CustomerHomeProvider provider) {
+    final device = provider.myDevice;
+    final name = device?.name ?? 'Your device';
+    final ip = device?.ipAddress ?? 'Not linked yet';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.dividerOf(context)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurfaceOf(context),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.wifi_rounded, color: AppColors.primary, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimaryOf(context),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  ip,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondaryOf(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (device != null) _StatusPill(status: device.status),
+        ],
+      ),
+    );
+  }
+
+  // ── KPI Row ─────────────────────────────────────────────────────────────
+
+  Widget _buildKpiRow(CustomerHomeProvider provider) {
+    final metric = provider.myMetric;
+
+    final latency = metric?.latencyMs != null
+        ? '${metric!.latencyMs!.toStringAsFixed(0)} ms'
+        : '-- ms';
+    final loss = metric?.packetLossPct != null
+        ? '${metric!.packetLossPct!.toStringAsFixed(1)}%'
+        : '--%';
     final uptimePct = metric?.uptimeSeconds != null
         ? (metric!.uptimeSeconds! / 2592000 * 100).clamp(0.0, 100.0)
         : null;
+    final uptime = uptimePct != null ? '${uptimePct.toStringAsFixed(1)}%' : '--%';
+
+    return Row(
+      children: [
+        _KpiTile(
+          label: 'Latency',
+          value: latency,
+          icon: Icons.speed_rounded,
+        ),
+        const SizedBox(width: 10),
+        _KpiTile(
+          label: 'Packet Loss',
+          value: loss,
+          icon: Icons.wifi_tethering_rounded,
+        ),
+        const SizedBox(width: 10),
+        _KpiTile(
+          label: 'Uptime',
+          value: uptime,
+          icon: Icons.timeline_rounded,
+        ),
+      ],
+    );
+  }
+
+  // ── Issue focus card ─────────────────────────────────────────────────----
+
+  Widget _buildIssueFocus(CustomerHomeProvider provider) {
+    AlertModel? activeAlert;
+    for (final alert in provider.recentAlerts) {
+      if (!alert.isResolved) {
+        activeAlert = alert;
+        break;
+      }
+    }
+
+    final hasIssue = !provider.serviceIsHealthy;
+    final title = hasIssue
+        ? 'We detected an issue'
+        : 'No active issues';
+    final subtitle = hasIssue
+        ? (activeAlert == null
+            ? 'Our team is investigating your connection.'
+        : _friendlyAlertTitle(activeAlert.alertType))
+        : 'Your service is stable right now.';
 
     return Container(
-      padding:    const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:        Theme.of(context).colorScheme.surface,
+        color: AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
-        ],
+        border: Border.all(color: AppColors.dividerOf(context)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color:        AppColors.primarySurfaceOf(context),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.router, color: AppColors.primary, size: 24),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      device.name,
-                      style: TextStyle(
-                        fontSize:   16,
-                        fontWeight: FontWeight.bold,
-                        color:      AppColors.textPrimaryOf(context),
-                      ),
-                    ),
-                    Text(
-                      device.ipAddress,
-                      style: TextStyle(
-                        fontSize: 13, color: AppColors.textSecondaryOf(context)),
-                    ),
-                  ],
-                ),
-              ),
-              _StatusPill(status: device.status),
-            ],
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurfaceOf(context),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              hasIssue ? Icons.warning_rounded : Icons.check_circle_rounded,
+              color: AppColors.primary,
+              size: 22,
+            ),
           ),
-          const Divider(height: 24),
-          Row(
-            children: [
-              _MetricChip(
-                label: 'Latency',
-                value: metric?.latencyMs != null
-                    ? '${metric!.latencyMs!.toStringAsFixed(0)} ms'
-                    : '-- ms',
-                icon: Icons.speed,
-              ),
-              const SizedBox(width: 8),
-              _MetricChip(
-                label: 'Packet Loss',
-                value: metric?.packetLossPct != null
-                    ? '${metric!.packetLossPct!.toStringAsFixed(1)}%'
-                    : '--%',
-                icon: Icons.wifi_tethering,
-              ),
-              const SizedBox(width: 8),
-              _MetricChip(
-                label: 'Uptime',
-                value: uptimePct != null
-                    ? '${uptimePct.toStringAsFixed(1)}%'
-                    : '--%',
-                icon: Icons.timeline,
-              ),
-            ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimaryOf(context),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondaryOf(context),
+                  ),
+                ),
+              ],
+            ),
           ),
+          if (hasIssue)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primarySurfaceOf(context),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'Active',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -333,35 +439,32 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
         Row(
           children: [
             Expanded(
-              child: _QuickActionCard(
-                icon:  Icons.support_agent,
-                label: 'Get Help',
-                color: AppColors.primary,
-                onTap: () => AppUtils.showSnackbar(
+              child: ElevatedButton.icon(
+                onPressed: () => AppUtils.showSnackbar(
                   context,
                   'Tap the "Help" tab below for troubleshooting assistance.',
                 ),
+                icon: const Icon(Icons.support_agent_rounded),
+                label: const Text('Get Help'),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _QuickActionCard(
-                icon:  Icons.report_problem_outlined,
-                label: 'Report Issue',
-                color: AppColors.severityHigh,
-                onTap: () => _showReportDialog(context),
+              child: OutlinedButton.icon(
+                onPressed: () => _showReportDialog(context),
+                icon: const Icon(Icons.report_problem_outlined),
+                label: const Text('Report'),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _QuickActionCard(
-                icon:  Icons.history,
-                label: 'View History',
-                color: AppColors.primaryDark,
-                onTap: () => AppUtils.showSnackbar(
+              child: OutlinedButton.icon(
+                onPressed: () => AppUtils.showSnackbar(
                   context,
                   'Tap the "History" tab to see past issues.',
                 ),
+                icon: const Icon(Icons.history_rounded),
+                label: const Text('History'),
               ),
             ),
           ],
@@ -390,17 +493,20 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color:        AppColors.onlineLight,
+              color:        AppColors.primarySurfaceOf(context),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.check_circle, color: AppColors.online, size: 24),
-                SizedBox(width: 12),
+                const Icon(Icons.check_circle, color: AppColors.primary, size: 24),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'No recent issues. Your service has been running smoothly.',
-                    style: TextStyle(color: AppColors.online, fontSize: 14),
+                    style: TextStyle(
+                      color: AppColors.textPrimaryOf(context),
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ],
@@ -471,7 +577,7 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color:        isOnline ? AppColors.onlineLight : const Color(0xFFFFEBEE),
+        color:        AppColors.primarySurfaceOf(context),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -479,18 +585,19 @@ class _StatusPill extends StatelessWidget {
         style: TextStyle(
           fontSize:   12,
           fontWeight: FontWeight.bold,
-          color:      isOnline ? AppColors.online : AppColors.severityCritical,
+          color:      AppColors.primary,
         ),
       ),
     );
   }
 }
 
-class _MetricChip extends StatelessWidget {
-  final String   label;
-  final String   value;
+class _KpiTile extends StatelessWidget {
+  final String label;
+  final String value;
   final IconData icon;
-  const _MetricChip({
+
+  const _KpiTile({
     required this.label,
     required this.value,
     required this.icon,
@@ -500,68 +607,30 @@ class _MetricChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
         decoration: BoxDecoration(
-          color:        AppColors.bg(context),
-          borderRadius: BorderRadius.circular(8),
+          color: AppColors.surfaceOf(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.dividerOf(context)),
         ),
         child: Column(
           children: [
-            Icon(icon, size: 16, color: AppColors.primaryLight),
-            const SizedBox(height: 4),
+            Icon(icon, size: 18, color: AppColors.primary),
+            const SizedBox(height: 6),
             Text(
               value,
               style: TextStyle(
-                fontSize:   13,
-                fontWeight: FontWeight.bold,
-                color:      AppColors.textPrimaryOf(context),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimaryOf(context),
               ),
             ),
-            Text(
-              label,
-              style: TextStyle(fontSize: 10, color: AppColors.textHintOf(context)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickActionCard extends StatelessWidget {
-  final IconData     icon;
-  final String       label;
-  final Color        color;
-  final VoidCallback onTap;
-  const _QuickActionCard({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap:        onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color:        color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(12),
-          border:       Border.all(color: color.withOpacity(0.2)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 6),
+            const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
-                fontSize:   12,
-                fontWeight: FontWeight.w600,
-                color:      color,
+                fontSize: 11,
+                color: AppColors.textSecondaryOf(context),
               ),
             ),
           ],
@@ -578,9 +647,9 @@ class _IssueRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resolved       = alert.isResolved;
-    final statusColor    = resolved ? AppColors.online : AppColors.severityHigh;
-    final badgeBg        = resolved ? AppColors.onlineLight : const Color(0xFFFFF3E0);
-    final badgeTextColor = resolved ? AppColors.online : AppColors.severityMedium;
+    final statusColor    = AppColors.primary;
+    final badgeBg        = AppColors.primarySurfaceOf(context);
+    final badgeTextColor = AppColors.primary;
 
     return Container(
       margin:  const EdgeInsets.only(bottom: 8),
@@ -589,9 +658,7 @@ class _IssueRow extends StatelessWidget {
         color:        Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: resolved
-              ? AppColors.dividerOf(context)
-              : AppColors.severityHigh.withOpacity(0.3),
+          color: AppColors.dividerOf(context),
         ),
       ),
       child: Row(
@@ -641,15 +708,15 @@ class _IssueRow extends StatelessWidget {
       ),
     );
   }
+}
 
-  String _friendlyAlertTitle(String type) {
-    switch (type) {
-      case 'device_offline':  return 'Internet was offline';
-      case 'high_latency':    return 'Connection was slow';
-      case 'packet_loss':     return 'Packets were dropping';
-      case 'high_cpu':        return 'Router was overloaded';
-      case 'interface_error': return 'Network interface error';
-      default:                return type.replaceAll('_', ' ');
-    }
+String _friendlyAlertTitle(String type) {
+  switch (type) {
+    case 'device_offline':  return 'Internet was offline';
+    case 'high_latency':    return 'Connection was slow';
+    case 'packet_loss':     return 'Packets were dropping';
+    case 'high_cpu':        return 'Router was overloaded';
+    case 'interface_error': return 'Network interface error';
+    default:                return type.replaceAll('_', ' ');
   }
 }

@@ -172,6 +172,76 @@ class ApiClient {
     }
   }
 
+  static String _deviceTypeName(String type) {
+    switch (type) {
+      case AppConstants.deviceRouter:
+        return 'Router';
+      case AppConstants.deviceSwitch:
+        return 'Switch';
+      case AppConstants.deviceOlt:
+        return 'OLT';
+      case AppConstants.deviceAccessPoint:
+        return 'Access Point';
+      default:
+        return type;
+    }
+  }
+
+  static String _normalizeStatus(String status) {
+    return status == AppConstants.statusUnknown
+        ? AppConstants.statusOffline
+        : status;
+  }
+
+  /// Creates a new device.
+  static Future<DeviceModel> createDevice(DeviceModel device) async {
+    try {
+      final res = await _dio.post(
+        AppConstants.devicesEndpoint,
+        data: {
+          'name':            device.name,
+          'ip_address':      device.ipAddress,
+          'location':        device.location,
+          'status':          _normalizeStatus(device.status),
+          'snmp_community':  device.snmpCommunity,
+          'device_type_name': _deviceTypeName(device.deviceType),
+        },
+      );
+      return DeviceModel.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  /// Updates an existing device.
+  static Future<DeviceModel> updateDevice(DeviceModel device) async {
+    try {
+      final res = await _dio.put(
+        '${AppConstants.devicesEndpoint}${device.id}/',
+        data: {
+          'name':            device.name,
+          'ip_address':      device.ipAddress,
+          'location':        device.location,
+          'status':          _normalizeStatus(device.status),
+          'snmp_community':  device.snmpCommunity,
+          'device_type_name': _deviceTypeName(device.deviceType),
+        },
+      );
+      return DeviceModel.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  /// Deletes a device by ID.
+  static Future<void> deleteDevice(int id) async {
+    try {
+      await _dio.delete('${AppConstants.devicesEndpoint}$id/');
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
   // ── Metrics ───────────────────────────────────────────────────────────────
 
   /// Returns metrics, optionally filtered to one device.

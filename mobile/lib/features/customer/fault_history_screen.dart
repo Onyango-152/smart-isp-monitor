@@ -43,8 +43,12 @@ class FaultHistoryProvider extends ChangeNotifier {
     notifyListeners();
     try {
       _allFaults = await ApiClient.getMyAlerts();
+      _error = null;
     } catch (e) {
       _error = 'Failed to load fault history.';
+      if (e.toString().isNotEmpty) {
+        _error = e.toString();
+      }
     }
     _isLoading = false;
     notifyListeners();
@@ -85,6 +89,9 @@ class _FaultHistoryScreenState extends State<FaultHistoryScreen> {
               ? const Center(child: CircularProgressIndicator())
               : Column(
                   children: [
+                    if (provider.error != null)
+                      _buildErrorBanner(provider),
+
                     // ── Summary stats header ─────────────────────────────
                     _buildSummaryHeader(provider),
 
@@ -98,7 +105,7 @@ class _FaultHistoryScreenState extends State<FaultHistoryScreen> {
                           : RefreshIndicator(
                               onRefresh: provider.load,
                               child: ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+                                padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
                                 itemCount: provider.faults.length,
                                 itemBuilder: (context, i) {
                                   final fault = provider.faults[i];
@@ -119,25 +126,27 @@ class _FaultHistoryScreenState extends State<FaultHistoryScreen> {
 
   Widget _buildSummaryHeader(FaultHistoryProvider provider) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
       child: Row(
         children: [
           _StatBox(
             label: 'Total',
             value: provider.totalFaults.toString(),
-            color: AppColors.primaryLight,
+            color: AppColors.primary,
           ),
           const SizedBox(width: 10),
           _StatBox(
             label: 'Active',
             value: provider.activeFaults.toString(),
-            color: provider.activeFaults > 0 ? AppColors.severityCritical : AppColors.textHintOf(context),
+            color: provider.activeFaults > 0
+                ? AppColors.primary
+                : AppColors.textHintOf(context),
           ),
           const SizedBox(width: 10),
           _StatBox(
             label: 'Resolved',
             value: provider.resolvedFaults.toString(),
-            color: AppColors.online,
+            color: AppColors.primaryDark,
           ),
         ],
       ),
@@ -148,7 +157,7 @@ class _FaultHistoryScreenState extends State<FaultHistoryScreen> {
     final filterKeys   = ['all',      'active',  'resolved'];
     final filterLabels = ['All',      'Active',  'Resolved'];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(
         children: List.generate(filterKeys.length, (i) {
           final key      = filterKeys[i];
@@ -160,14 +169,14 @@ class _FaultHistoryScreenState extends State<FaultHistoryScreen> {
               onTap: () => provider.setFilter(key),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color:        selected ? AppColors.primary : Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: selected ? AppColors.primary : AppColors.dividerOf(context)),
                 ),
                 child: Text(label, style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600,
+                  fontSize: 12.5, fontWeight: FontWeight.w600,
                   color: selected ? Colors.white : AppColors.textSecondaryOf(context),
                 )),
               ),
@@ -183,15 +192,57 @@ class _FaultHistoryScreenState extends State<FaultHistoryScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.history, size: 64, color: AppColors.primaryLight),
-          const SizedBox(height: 16),
+          const Icon(Icons.history, size: 56, color: AppColors.primary),
+          const SizedBox(height: 12),
           Text(
             filter == 'active' ? 'No active faults' : 'No history yet',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimaryOf(context)),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimaryOf(context),
+            ),
           ),
-          const SizedBox(height: 8),
-          Text('Your service has been running without issues.',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondaryOf(context))),
+          const SizedBox(height: 6),
+          Text(
+            'Your service has been running without issues.',
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondaryOf(context),
+              height: 1.4,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(FaultHistoryProvider provider) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primarySurfaceOf(context),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: AppColors.primary, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              provider.error ?? 'Failed to load fault history.',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: AppColors.textSecondaryOf(context),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: provider.load,
+            child: const Text('Retry'),
+          ),
         ],
       ),
     );
@@ -218,7 +269,7 @@ class _FaultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resolved = fault.isResolved;
-    final severityColor = AppUtils.severityColor(fault.severity);
+    final statusColor = AppColors.primary;
 
     // Duration of the fault (if resolved)
     String? duration;
@@ -239,14 +290,14 @@ class _FaultCard extends StatelessWidget {
       onTap:        onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        margin:  const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
+        margin:  const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color:        Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: resolved ? AppColors.dividerOf(context) : severityColor.withOpacity(0.4),
-            width: resolved ? 1 : 1.5,
+            color: AppColors.dividerOf(context),
+            width: 1,
           ),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
         ),
@@ -258,7 +309,7 @@ class _FaultCard extends StatelessWidget {
               width:  4,
               height: 50,
               decoration: BoxDecoration(
-                color:        resolved ? AppColors.online : severityColor,
+                color:        statusColor,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -274,7 +325,10 @@ class _FaultCard extends StatelessWidget {
                         child: Text(
                           _friendlyTitle(fault.alertType),
                           style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimaryOf(context)),
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimaryOf(context),
+                          ),
                         ),
                       ),
                       _StatusBadge(resolved: resolved),
@@ -283,7 +337,11 @@ class _FaultCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     _friendlyMessage(fault.message),
-                    style: TextStyle(fontSize: 13, color: AppColors.textSecondaryOf(context), height: 1.4),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.textSecondaryOf(context),
+                      height: 1.45,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -292,14 +350,18 @@ class _FaultCard extends StatelessWidget {
                     children: [
                       Icon(Icons.access_time, size: 12, color: AppColors.textHintOf(context)),
                       const SizedBox(width: 4),
-                      Text(AppUtils.timeAgo(fault.triggeredAt),
-                          style: TextStyle(fontSize: 11, color: AppColors.textHintOf(context))),
+                      Text(
+                        AppUtils.timeAgo(fault.triggeredAt),
+                        style: TextStyle(fontSize: 11, color: AppColors.textHintOf(context)),
+                      ),
                       if (duration != null) ...[
                         const SizedBox(width: 10),
                         Icon(Icons.timer_outlined, size: 12, color: AppColors.textHintOf(context)),
                         const SizedBox(width: 4),
-                        Text('Lasted $duration',
-                            style: TextStyle(fontSize: 11, color: AppColors.textHintOf(context))),
+                        Text(
+                          'Lasted $duration',
+                          style: TextStyle(fontSize: 11, color: AppColors.textHintOf(context)),
+                        ),
                       ],
                     ],
                   ),
@@ -343,14 +405,14 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding:    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color:        resolved ? AppColors.onlineLight : const Color(0xFFFFEBEE),
+        color:        AppColors.primarySurfaceOf(context),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         resolved ? 'Resolved' : 'Active',
         style: TextStyle(
           fontSize: 11, fontWeight: FontWeight.bold,
-          color: resolved ? AppColors.online : AppColors.offline,
+          color: AppColors.primary,
         ),
       ),
     );
@@ -365,14 +427,13 @@ class _FaultDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final severityColor = AppUtils.severityColor(fault.severity);
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize:     0.4,
       maxChildSize:     0.9,
       expand: false,
       builder: (_, controller) => Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         child: ListView(
           controller: controller,
           children: [
@@ -392,12 +453,16 @@ class _FaultDetailSheet extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color:        severityColor.withOpacity(0.12),
+                    color:        AppColors.primarySurfaceOf(context),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     fault.severity.toUpperCase(),
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: severityColor),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
                 const Spacer(),
@@ -408,52 +473,52 @@ class _FaultDetailSheet extends StatelessWidget {
 
             // Title
             Text(_friendlyTitle(fault.alertType), style: TextStyle(
-              fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimaryOf(context))),
+              fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimaryOf(context))),
             const SizedBox(height: 8),
             Text(_friendlyMessage(fault.message), style: TextStyle(
-              fontSize: 14, color: AppColors.textSecondaryOf(context), height: 1.5)),
-            const Divider(height: 28),
+              fontSize: 13.5, color: AppColors.textSecondaryOf(context), height: 1.5)),
+            const Divider(height: 24),
 
             // Timeline
             _DetailRow(label: 'Started', value: AppUtils.formatDateTime(fault.triggeredAt)),
             if (fault.resolvedAt != null)
               _DetailRow(label: 'Resolved', value: AppUtils.formatDateTime(fault.resolvedAt!)),
             _DetailRow(label: 'Device', value: fault.deviceName),
-            const Divider(height: 28),
+            const Divider(height: 24),
 
             // What happened — plain English explanation
             Text('What happened?', style: TextStyle(
-              fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimaryOf(context))),
+              fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimaryOf(context))),
             const SizedBox(height: 8),
             Text(
               _whatHappened(fault.alertType),
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondaryOf(context), height: 1.6),
+              style: TextStyle(fontSize: 13.5, color: AppColors.textSecondaryOf(context), height: 1.6),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
             // What was done
             if (fault.isResolved) ...[
               Text('How was it fixed?', style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimaryOf(context))),
+                fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimaryOf(context))),
               const SizedBox(height: 8),
               Text(
                 _howFixed(fault.alertType),
-                style: TextStyle(fontSize: 14, color: AppColors.textSecondaryOf(context), height: 1.6),
+                style: TextStyle(fontSize: 13.5, color: AppColors.textSecondaryOf(context), height: 1.6),
               ),
             ] else ...[
               Container(
                 padding:    const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF8E1),
+                  color: AppColors.primarySurfaceOf(context),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: const [
-                    Icon(Icons.engineering, color: AppColors.severityMedium),
+                    Icon(Icons.engineering, color: AppColors.primary),
                     SizedBox(width: 10),
                     Expanded(child: Text(
                       'Our technical team has been notified and is working to resolve this issue.',
-                      style: TextStyle(fontSize: 13, color: AppColors.severityMedium),
+                      style: TextStyle(fontSize: 13, color: AppColors.primary),
                     )),
                   ],
                 ),

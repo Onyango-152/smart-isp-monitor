@@ -5,7 +5,6 @@ import '../../core/theme.dart';
 import '../../core/utils.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_skeleton.dart';
-import '../../core/widgets/status_badge.dart';
 import '../../data/models/alert_model.dart';
 import 'alerts_provider.dart';
 
@@ -53,7 +52,7 @@ class _AlertsScreenState extends State<AlertsScreen>
     return Consumer<AlertsProvider>(
       builder: (context, provider, _) {
         return Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: AppColors.bg(context),
           appBar: provider.isSelectMode
               ? _buildSelectAppBar(provider)
               : _buildAppBar(),
@@ -68,7 +67,7 @@ class _AlertsScreenState extends State<AlertsScreen>
 
   Widget _buildBody(AlertsProvider provider) {
           if (provider.isLoading) {
-            return ShimmerSkeleton.alertList();
+            return ShimmerSkeleton.alertList(animate: false);
           }
 
           if (provider.hasError) {
@@ -76,7 +75,8 @@ class _AlertsScreenState extends State<AlertsScreen>
               icon:        Icons.cloud_off_rounded,
               title:       'Could Not Load Alerts',
               message:     provider.errorMessage!,
-              color:       AppColors.offline,
+              color:       AppColors.primary,
+              animate:     false,
               actionLabel: 'Retry',
               onAction:    provider.loadAlerts,
             );
@@ -115,9 +115,10 @@ class _AlertsScreenState extends State<AlertsScreen>
 
   PreferredSizeWidget _buildSelectAppBar(AlertsProvider provider) {
     return AppBar(
-      leading: IconButton(
-        icon: const Icon(Icons.close_rounded),
+      leading: TextButton(
         onPressed: provider.exitSelectMode,
+        child: const Text('Close',
+            style: TextStyle(color: AppColors.textOnDark)),
       ),
       title: Text('${provider.selectedCount} selected'),
       actions: [
@@ -126,7 +127,7 @@ class _AlertsScreenState extends State<AlertsScreen>
             _filterBySeverity(provider.activeAlerts),
           ),
           child: const Text('Select All',
-              style: TextStyle(color: Colors.white)),
+              style: TextStyle(color: AppColors.textOnDark)),
         ),
         const SizedBox(width: 4),
       ],
@@ -139,10 +140,10 @@ class _AlertsScreenState extends State<AlertsScreen>
     return Container(
       padding:    const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surfaceOf(context),
         boxShadow: [
           BoxShadow(
-            color:      Colors.black.withOpacity(0.08),
+            color:      AppColors.dividerOf(context).withOpacity(0.6),
             blurRadius: 8,
             offset:     const Offset(0, -2),
           ),
@@ -152,7 +153,7 @@ class _AlertsScreenState extends State<AlertsScreen>
         child: Row(
           children: [
             Expanded(
-              child: OutlinedButton.icon(
+              child: OutlinedButton(
                 onPressed: provider.selectedCount == 0
                     ? null
                     : () {
@@ -160,8 +161,7 @@ class _AlertsScreenState extends State<AlertsScreen>
                         AppUtils.showSnackbar(
                             context, 'Selected alerts acknowledged');
                       },
-                icon:  const Icon(Icons.visibility_rounded, size: 18),
-                label: const Text('Acknowledge'),
+                child: const Text('Acknowledge'),
                 style: OutlinedButton.styleFrom(
                   minimumSize:     const Size(0, 46),
                   foregroundColor: AppColors.primary,
@@ -173,7 +173,7 @@ class _AlertsScreenState extends State<AlertsScreen>
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: ElevatedButton.icon(
+              child: ElevatedButton(
                 onPressed: provider.selectedCount == 0
                     ? null
                     : () {
@@ -181,8 +181,7 @@ class _AlertsScreenState extends State<AlertsScreen>
                         AppUtils.showSnackbar(
                             context, 'Selected alerts resolved');
                       },
-                icon:  const Icon(Icons.check_circle_rounded, size: 18),
-                label: const Text('Resolve'),
+                child: const Text('Resolve'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(0, 46),
                   shape: RoundedRectangleBorder(
@@ -218,20 +217,20 @@ class _AlertsScreenState extends State<AlertsScreen>
         builder: (_, provider, __) => Row(
           children: [
             const Text('Alerts',
-                style: TextStyle(color: Colors.white)),
+                style: TextStyle(color: AppColors.textOnDark)),
             if (provider.activeAlerts.isNotEmpty) ...[
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color:        AppColors.offline,
+                  color:        AppColors.primary,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   '${provider.activeAlerts.length}',
                   style: const TextStyle(
-                    color:      Colors.white,
+                    color:      AppColors.textOnDark,
                     fontSize:   12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -243,12 +242,13 @@ class _AlertsScreenState extends State<AlertsScreen>
       ),
       actions: [
         Consumer<AlertsProvider>(
-          builder: (_, provider, __) => IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+          builder: (_, provider, __) => TextButton(
             onPressed: provider.isLoading ? null : () {
               AppUtils.haptic();
               provider.refresh();
             },
+            child: const Text('Refresh',
+                style: TextStyle(color: AppColors.textOnDark)),
           ),
         ),
         const SizedBox(width: 4),
@@ -260,9 +260,9 @@ class _AlertsScreenState extends State<AlertsScreen>
   PreferredSizeWidget _buildTabBar() {
     return TabBar(
       controller:           _tabController,
-      labelColor:           Colors.white,
-      unselectedLabelColor: Colors.white60,
-      indicatorColor:       Colors.white,
+      labelColor:           AppColors.textOnDark,
+      unselectedLabelColor: AppColors.textOnDark.withOpacity(0.6),
+      indicatorColor:       AppColors.textOnDark,
       indicatorWeight:      3,
       tabs: [
         Consumer<AlertsProvider>(
@@ -277,7 +277,7 @@ class _AlertsScreenState extends State<AlertsScreen>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color:        AppColors.offline,
+                      color:        AppColors.primary,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -285,7 +285,7 @@ class _AlertsScreenState extends State<AlertsScreen>
                       style: const TextStyle(
                         fontSize:   10,
                         fontWeight: FontWeight.bold,
-                        color:      Colors.white,
+                        color:      AppColors.textOnDark,
                       ),
                     ),
                   ),
@@ -295,7 +295,7 @@ class _AlertsScreenState extends State<AlertsScreen>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color:        Colors.white.withOpacity(0.25),
+                      color:        AppColors.textOnDark.withOpacity(0.25),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -303,7 +303,7 @@ class _AlertsScreenState extends State<AlertsScreen>
                       style: const TextStyle(
                         fontSize:   10,
                         fontWeight: FontWeight.bold,
-                        color:      Colors.white,
+                        color:      AppColors.textOnDark,
                       ),
                     ),
                   ),
@@ -324,7 +324,7 @@ class _AlertsScreenState extends State<AlertsScreen>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color:        Colors.white.withOpacity(0.2),
+                      color:        AppColors.textOnDark.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -332,7 +332,7 @@ class _AlertsScreenState extends State<AlertsScreen>
                       style: const TextStyle(
                         fontSize:   10,
                         fontWeight: FontWeight.w600,
-                        color:      Colors.white,
+                        color:      AppColors.textOnDark,
                       ),
                     ),
                   ),
@@ -349,7 +349,7 @@ class _AlertsScreenState extends State<AlertsScreen>
 
   Widget _buildSeverityRow(AlertsProvider provider) {
     return Container(
-      color: Colors.white,
+      color: AppColors.surfaceOf(context),
       child: SizedBox(
         height: 46,
         child: ListView(
@@ -364,14 +364,14 @@ class _AlertsScreenState extends State<AlertsScreen>
             _SeverityChip(
               label:    'Critical',
               selected: _severityFilter == AppConstants.severityCritical,
-              color:    AppColors.offline,
+              color:    AppColors.primary,
               onTap:    () => setState(
                   () => _severityFilter = AppConstants.severityCritical),
             ),
             _SeverityChip(
               label:    'High',
               selected: _severityFilter == AppConstants.severityHigh,
-              color:    AppColors.degraded,
+              color:    AppColors.primary,
               onTap:    () => setState(
                   () => _severityFilter = AppConstants.severityHigh),
             ),
@@ -385,7 +385,7 @@ class _AlertsScreenState extends State<AlertsScreen>
             _SeverityChip(
               label:    'Low',
               selected: _severityFilter == AppConstants.severityLow,
-              color:    AppColors.online,
+              color:    AppColors.primary,
               onTap:    () => setState(
                   () => _severityFilter = AppConstants.severityLow),
             ),
@@ -417,7 +417,8 @@ class _AlertsScreenState extends State<AlertsScreen>
           message: isActive
               ? 'All devices are operating normally.\nNo issues require your attention.'
               : 'Resolved alerts will appear here.',
-          color:   isActive ? AppColors.online : null,
+          color:   AppColors.primary,
+          animate: false,
         );
       }
 
@@ -426,7 +427,8 @@ class _AlertsScreenState extends State<AlertsScreen>
         icon:        Icons.filter_list_off_rounded,
         title:       'No ${_severityFilter.capitalize()} Alerts',
         message:     'No ${isActive ? "active" : "resolved"} alerts match this severity filter.',
-        color:       AppColors.degraded,
+        color:       AppColors.primary,
+        animate:     false,
         actionLabel: 'Show All',
         onAction:    () => setState(() => _severityFilter = 'all'),
       );
@@ -520,7 +522,7 @@ class _AlertCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color    = AppUtils.severityColor(alert.severity);
+    final color    = AppColors.primary;
     final provider = context.watch<AlertsProvider>();
     final inSelectMode = provider.isSelectMode;
     final isSelected   = provider.selectedIds.contains(alert.id);
@@ -546,7 +548,9 @@ class _AlertCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
         decoration: BoxDecoration(
-          color:        isSelected ? AppColors.primarySurface : Colors.white,
+          color:        isSelected
+              ? AppColors.primarySurfaceOf(context)
+              : AppColors.surfaceOf(context),
           borderRadius: BorderRadius.circular(14),
           border:       Border(left: BorderSide(color: color, width: 4)),
           boxShadow:    AppShadows.card,
@@ -561,17 +565,12 @@ class _AlertCard extends StatelessWidget {
               Row(
                 children: [
                   if (inSelectMode) ...[
-                    Icon(
-                      isSelected
-                          ? Icons.check_circle_rounded
-                          : Icons.radio_button_unchecked_rounded,
-                      color: isSelected ? AppColors.primary : AppColors.textHint,
-                      size: 20,
+                    _MiniPill(
+                      label: isSelected ? 'SELECTED' : 'SELECT',
+                      color: AppColors.primary,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                   ],
-                  Icon(_alertIcon(alert.alertType), color: color, size: 17),
-                  const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       alert.alertType.replaceAll('_', ' ').toUpperCase(),
@@ -582,10 +581,7 @@ class _AlertCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  SeverityBadge(
-                    severity: alert.severity,
-                    size:     BadgeSize.small,
-                  ),
+                  _MiniPill(label: 'ALERT', color: AppColors.primary),
                   const SizedBox(width: 8),
                   Text(
                     AppUtils.timeAgo(alert.triggeredAt),
@@ -604,9 +600,6 @@ class _AlertCard extends StatelessWidget {
               // ── Bottom row: device, pills, actions ────────────────────
               Row(
                 children: [
-                  const Icon(Icons.router_rounded,
-                      size: 13, color: AppColors.textHint),
-                  const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       alert.deviceName,
@@ -619,7 +612,7 @@ class _AlertCard extends StatelessWidget {
                   if (alert.isAcknowledged && !alert.isResolved)
                     _MiniPill(label: 'ACK',      color: AppColors.primary),
                   if (alert.isResolved) ...[
-                    _MiniPill(label: 'RESOLVED', color: AppColors.online),
+                    _MiniPill(label: 'RESOLVED', color: AppColors.primary),
                     if (alert.resolvedAt != null) ...[
                       const SizedBox(width: 6),
                       Text(
@@ -637,9 +630,7 @@ class _AlertCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           if (!alert.isAcknowledged)
                             _QuickActionButton(
-                              icon:    Icons.visibility_rounded,
-                              color:   AppColors.primary,
-                              tooltip: 'Acknowledge',
+                              label:   'Ack',
                               onTap: () {
                                 AppUtils.hapticSelect();
                                 provider.acknowledgeAlert(alert.id);
@@ -649,9 +640,7 @@ class _AlertCard extends StatelessWidget {
                             ),
                           const SizedBox(width: 5),
                           _QuickActionButton(
-                            icon:    Icons.check_circle_rounded,
-                            color:   AppColors.online,
-                            tooltip: 'Resolve',
+                            label:   'Resolve',
                             onTap: () {
                               AppUtils.hapticSelect();
                               provider.resolveAlert(alert.id);
@@ -697,42 +686,22 @@ class _AlertCard extends StatelessWidget {
         ),
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.only(left: 20),
-        child: const Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.visibility_rounded, color: Colors.white, size: 20),
-          SizedBox(width: 8),
-          Text('Acknowledge',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-        ]),
+        child: const Text('Acknowledge',
+          style: TextStyle(color: AppColors.textOnDark, fontWeight: FontWeight.w700, fontSize: 13)),
       ),
       secondaryBackground: Container(
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
         decoration: BoxDecoration(
-          color: AppColors.online,
+          color: AppColors.primaryDark,
           borderRadius: BorderRadius.circular(14),
         ),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
-        child: const Row(mainAxisSize: MainAxisSize.min, children: [
-          Text('Resolve',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-          SizedBox(width: 8),
-          Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-        ]),
+        child: const Text('Resolve',
+          style: TextStyle(color: AppColors.textOnDark, fontWeight: FontWeight.w700, fontSize: 13)),
       ),
       child: card,
     );
-  }
-
-  IconData _alertIcon(String type) {
-    switch (type) {
-      case 'device_offline':  return Icons.wifi_off_rounded;
-      case 'high_latency':    return Icons.speed_rounded;
-      case 'packet_loss':     return Icons.signal_wifi_bad_rounded;
-      case 'high_cpu':        return Icons.memory_rounded;
-      case 'high_memory':     return Icons.storage_rounded;
-      case 'interface_error': return Icons.cable_rounded;
-      default:                return Icons.warning_rounded;
-    }
   }
 }
 
@@ -750,13 +719,13 @@ class _MiniPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color:        color.withOpacity(0.1),
+        color:        AppColors.primarySurfaceOf(context),
         borderRadius: BorderRadius.circular(5),
       ),
       child: Text(
         label,
         style: AppTextStyles.caption.copyWith(
-          color:      color,
+          color:      AppColors.primary,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -769,32 +738,32 @@ class _MiniPill extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _QuickActionButton extends StatelessWidget {
-  final IconData     icon;
-  final Color        color;
-  final String       tooltip;
+  final String       label;
   final VoidCallback onTap;
 
   const _QuickActionButton({
-    required this.icon,
-    required this.color,
-    required this.tooltip,
+    required this.label,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color:        color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(7),
-            border:       Border.all(color: color.withOpacity(0.3)),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color:        AppColors.primarySurfaceOf(context),
+          borderRadius: BorderRadius.circular(7),
+          border:       Border.all(color: AppColors.primary.withOpacity(0.35)),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: AppColors.primary,
           ),
-          child: Icon(icon, size: 15, color: color),
         ),
       ),
     );
