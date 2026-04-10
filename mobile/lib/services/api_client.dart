@@ -1,7 +1,8 @@
+import 'dart:async';
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:typed_data';
 
 import '../core/constants.dart';
 import '../data/models/alert_model.dart';
@@ -10,25 +11,20 @@ import '../data/models/metric_model.dart';
 import '../data/models/task_model.dart';
 import '../data/models/user_model.dart';
 
-/// ApiClient is the single Dio instance used for all authenticated requests
-/// after login.  It:
-///   - Attaches the JWT access token on every request.
-///   - Automatically refreshes the token on a 401 and retries once.
-///   - Parses both plain lists and DRF-paginated `{count, results}` shapes.
-///   - Throws [ApiException] with a human-readable message on failures.
+/// ApiClient is the single Dio instance used for all authenticated requests.
 class ApiClient {
   ApiClient._();
 
   static final Dio _dio = _buildDio();
-  // Guard against concurrent refresh attempts
   static bool _isRefreshing = false;
+  static Completer<void>? _refreshCompleter;
 
-  // ── Dio setup ─────────────────────────────────────────────────────────────
+  // ── Dio setup ───────────────────────────────────────────────────────────
 
   static Dio _buildDio() {
     final dio = Dio(
       BaseOptions(
-        baseUrl:        AppConstants.baseUrl,
+        baseUrl: AppConstants.baseUrl,
         connectTimeout: Duration(milliseconds: AppConstants.connectTimeout),
         receiveTimeout: Duration(milliseconds: AppConstants.receiveTimeout),
         headers: {'Content-Type': 'application/json'},
@@ -50,24 +46,43 @@ class ApiClient {
           handler.next(response);
         },
         onError: (DioException error, handler) async {
-          // Attempt token refresh on 401, then retry original request once.
-          if (error.response?.statusCode == 401 && !_isRefreshing) {
-            _isRefreshing = true;
-            try {
-              final refreshed = await _refreshToken();
-              if (refreshed) {
-                // Retry the original request with the new token.
+          if (error.response?.statusCode == 401) {
+            if (_isRefreshing) {
+              try {
+                await _refreshCompleter?.future;
                 final opts = error.requestOptions;
                 final newToken = await _getAccessToken();
-                opts.headers['Authorization'] = 'Bearer $newToken';
+                if (newToken != null) {
+                  opts.headers['Authorization'] = 'Bearer $newToken';
+                }
                 final response = await _dio.fetch(opts);
-                _isRefreshing = false;
                 return handler.resolve(response);
+              } catch (_) {
+                // Refresh failed — fall through to propagate error.
               }
-            } catch (_) {
-              // Refresh failed — fall through to propagate the original error.
+            } else {
+              _isRefreshing = true;
+              _refreshCompleter = Completer<void>();
+              try {
+                final refreshed = await _refreshToken();
+                if (refreshed) {
+                  _refreshCompleter?.complete();
+                  final opts = error.requestOptions;
+                  final newToken = await _getAccessToken();
+                  if (newToken != null) {
+                    opts.headers['Authorization'] = 'Bearer $newToken';
+                  }
+                  final response = await _dio.fetch(opts);
+                  return handler.resolve(response);
+                }
+                _refreshCompleter?.completeError(Exception('Token refresh failed'));
+              } catch (_) {
+                _refreshCompleter?.completeError(Exception('Token refresh failed'));
+                // Refresh failed — fall through to propagate error.
+              } finally {
+                _isRefreshing = false;
+              }
             }
-            _isRefreshing = false;
           }
           debugPrint(
             '[API] ERROR ${error.response?.statusCode} '
@@ -81,7 +96,7 @@ class ApiClient {
     return dio;
   }
 
-  // ── Auth helpers ──────────────────────────────────────────────────────────
+  // ── Auth helpers ─────────────────────────────────────────────────────────
 
   static Future<String?> _getAccessToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -89,14 +104,13 @@ class ApiClient {
   }
 
   static Future<bool> _refreshToken() async {
-    final prefs  = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
     final refresh = prefs.getString(AppConstants.refreshTokenKey);
     if (refresh == null) return false;
 
     try {
-      // Use a plain Dio (no interceptors) to avoid recursive loops.
       final plain = Dio(BaseOptions(baseUrl: AppConstants.baseUrl));
-      final res   = await plain.post(
+      final res = await plain.post(
         AppConstants.tokenRefreshEndpoint,
         data: {'refresh': refresh},
       );
@@ -109,9 +123,8 @@ class ApiClient {
     }
   }
 
-  // ── Generic helpers ───────────────────────────────────────────────────────
+  // ── Generic helpers ──────────────────────────────────────────────────────
 
-  /// Parses a DRF response that is either a plain list or a paginated object.
   static List<dynamic> _asList(dynamic data) {
     if (data is List) return data;
     if (data is Map && data.containsKey('results')) {
@@ -122,7 +135,7 @@ class ApiClient {
 
   static Never _handleDioError(DioException e) {
     final status = e.response?.statusCode;
-    final body   = e.response?.data;
+    final body = e.response?.data;
 
     String message;
     if (e.type == DioExceptionType.connectionTimeout ||
@@ -131,7 +144,6 @@ class ApiClient {
     } else if (e.type == DioExceptionType.connectionError) {
       message = 'Cannot reach the server. Are you online?';
     } else if (status == 400) {
-      // Try to extract first validation message from DRF error body.
       if (body is Map) {
         final first = body.values.first;
         message = first is List ? first.first.toString() : first.toString();
@@ -150,61 +162,51 @@ class ApiClient {
     throw ApiException(message, statusCode: status);
   }
 
-  // ── Devices ───────────────────────────────────────────────────────────────
+  static String _normalizeStatus(String status) {
+    if (status == AppConstants.statusUnknown) {
+      return AppConstants.statusOffline;
+    }
+    if (status == AppConstants.statusDegraded) {
+      return 'unreachable';
+    }
+    return status;
+  }
 
-  /// Returns all devices (admin / technician / manager).
+  // ── Devices ──────────────────────────────────────────────────────────────
+
   static Future<List<DeviceModel>> getDevices() async {
     try {
-      final res  = await _dio.get(AppConstants.devicesEndpoint);
-      return _asList(res.data).map((j) => DeviceModel.fromJson(j as Map<String, dynamic>)).toList();
+      final res = await _dio.get(AppConstants.devicesEndpoint);
+      return _asList(res.data)
+          .map((j) => DeviceModel.fromJson(j as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       _handleDioError(e);
     }
   }
 
-  /// Returns only the devices assigned to the current customer.
   static Future<List<DeviceModel>> getMyDevices() async {
     try {
       final res = await _dio.get(AppConstants.myDevicesEndpoint);
-      return _asList(res.data).map((j) => DeviceModel.fromJson(j as Map<String, dynamic>)).toList();
+      return _asList(res.data)
+          .map((j) => DeviceModel.fromJson(j as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       _handleDioError(e);
     }
   }
 
-  static String _deviceTypeName(String type) {
-    switch (type) {
-      case AppConstants.deviceRouter:
-        return 'Router';
-      case AppConstants.deviceSwitch:
-        return 'Switch';
-      case AppConstants.deviceOlt:
-        return 'OLT';
-      case AppConstants.deviceAccessPoint:
-        return 'Access Point';
-      default:
-        return type;
-    }
-  }
-
-  static String _normalizeStatus(String status) {
-    return status == AppConstants.statusUnknown
-        ? AppConstants.statusOffline
-        : status;
-  }
-
-  /// Creates a new device.
   static Future<DeviceModel> createDevice(DeviceModel device) async {
     try {
       final res = await _dio.post(
         AppConstants.devicesEndpoint,
         data: {
-          'name':            device.name,
-          'ip_address':      device.ipAddress,
-          'location':        device.location,
-          'status':          _normalizeStatus(device.status),
-          'snmp_community':  device.snmpCommunity,
-          'device_type_name': _deviceTypeName(device.deviceType),
+          'name': device.name,
+          'ip_address': device.ipAddress,
+          'location': device.location,
+          'status': _normalizeStatus(device.status),
+          'snmp_community': device.snmpCommunity,
+          'device_type_name': device.deviceType,
         },
       );
       return DeviceModel.fromJson(res.data as Map<String, dynamic>);
@@ -213,18 +215,17 @@ class ApiClient {
     }
   }
 
-  /// Updates an existing device.
   static Future<DeviceModel> updateDevice(DeviceModel device) async {
     try {
-      final res = await _dio.put(
+      final res = await _dio.patch(
         '${AppConstants.devicesEndpoint}${device.id}/',
         data: {
-          'name':            device.name,
-          'ip_address':      device.ipAddress,
-          'location':        device.location,
-          'status':          _normalizeStatus(device.status),
-          'snmp_community':  device.snmpCommunity,
-          'device_type_name': _deviceTypeName(device.deviceType),
+          'name': device.name,
+          'ip_address': device.ipAddress,
+          'location': device.location,
+          'status': _normalizeStatus(device.status),
+          'snmp_community': device.snmpCommunity,
+          'device_type_name': device.deviceType,
         },
       );
       return DeviceModel.fromJson(res.data as Map<String, dynamic>);
@@ -233,7 +234,6 @@ class ApiClient {
     }
   }
 
-  /// Deletes a device by ID.
   static Future<void> deleteDevice(int id) async {
     try {
       await _dio.delete('${AppConstants.devicesEndpoint}$id/');
@@ -242,44 +242,30 @@ class ApiClient {
     }
   }
 
-  // ── Metrics ───────────────────────────────────────────────────────────────
+  // ── Alerts ───────────────────────────────────────────────────────────────
 
-  /// Returns metrics, optionally filtered to one device.
-  static Future<List<MetricModel>> getMetrics({int? deviceId}) async {
-    try {
-      final res = await _dio.get(
-        AppConstants.metricsEndpoint,
-        queryParameters: deviceId != null ? {'device': deviceId} : null,
-      );
-      return _asList(res.data).map((j) => MetricModel.fromJson(j as Map<String, dynamic>)).toList();
-    } on DioException catch (e) {
-      _handleDioError(e);
-    }
-  }
-
-  // ── Alerts ────────────────────────────────────────────────────────────────
-
-  /// Returns all alerts (admin / technician / manager).
   static Future<List<AlertModel>> getAlerts() async {
     try {
-      final res  = await _dio.get(AppConstants.alertsEndpoint);
-      return _asList(res.data).map((j) => AlertModel.fromJson(j as Map<String, dynamic>)).toList();
+      final res = await _dio.get(AppConstants.alertsEndpoint);
+      return _asList(res.data)
+          .map((j) => AlertModel.fromJson(j as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       _handleDioError(e);
     }
   }
 
-  /// Returns only alerts for the current customer's devices.
   static Future<List<AlertModel>> getMyAlerts() async {
     try {
       final res = await _dio.get(AppConstants.myAlertsEndpoint);
-      return _asList(res.data).map((j) => AlertModel.fromJson(j as Map<String, dynamic>)).toList();
+      return _asList(res.data)
+          .map((j) => AlertModel.fromJson(j as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       _handleDioError(e);
     }
   }
 
-  /// Acknowledges an alert by ID.
   static Future<void> acknowledgeAlert(int id) async {
     try {
       await _dio.post('${AppConstants.alertsEndpoint}$id/acknowledge/');
@@ -288,7 +274,6 @@ class ApiClient {
     }
   }
 
-  /// Resolves an alert by ID.
   static Future<void> resolveAlert(int id) async {
     try {
       await _dio.post('${AppConstants.alertsEndpoint}$id/resolve/');
@@ -297,33 +282,50 @@ class ApiClient {
     }
   }
 
-  // ── Tasks ─────────────────────────────────────────────────────────────────
+  // ── Metrics ──────────────────────────────────────────────────────────────
 
-  /// Returns all monitoring tasks.
+  static Future<List<MetricModel>> getMetrics({int? deviceId}) async {
+    try {
+      final res = await _dio.get(
+        AppConstants.metricsEndpoint,
+        queryParameters: deviceId != null ? {'device': deviceId} : null,
+      );
+      return _asList(res.data)
+          .map((j) => MetricModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  // ── Tasks ────────────────────────────────────────────────────────────────
+
   static Future<List<TaskModel>> getTasks() async {
     try {
-      final res  = await _dio.get(AppConstants.tasksEndpoint);
-      return _asList(res.data).map((j) => TaskModel.fromJson(j as Map<String, dynamic>)).toList();
+      final res = await _dio.get(AppConstants.tasksEndpoint);
+      return _asList(res.data)
+          .map((j) => TaskModel.fromJson(j as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       _handleDioError(e);
     }
   }
 
-  // ── Clients ───────────────────────────────────────────────────────────────
+  // ── Clients ──────────────────────────────────────────────────────────────
 
-  /// Returns the list of customer accounts (admin / manager only).
   static Future<List<UserModel>> getClients() async {
     try {
-      final res  = await _dio.get(AppConstants.clientsEndpoint);
-      return _asList(res.data).map((j) => UserModel.fromJson(j as Map<String, dynamic>)).toList();
+      final res = await _dio.get(AppConstants.clientsEndpoint);
+      return _asList(res.data)
+          .map((j) => UserModel.fromJson(j as Map<String, dynamic>))
+          .toList();
     } on DioException catch (e) {
       _handleDioError(e);
     }
   }
 
-  // ── Dashboard ─────────────────────────────────────────────────────────────
+  // ── Dashboard ────────────────────────────────────────────────────────────
 
-  /// Returns the admin/manager dashboard summary.
   static Future<Map<String, dynamic>> getDashboardSummary() async {
     try {
       final res = await _dio.get(AppConstants.dashboardEndpoint);
@@ -333,34 +335,19 @@ class ApiClient {
     }
   }
 
-  /// Returns the simplified customer dashboard.
-  static Future<Map<String, dynamic>> getCustomerDashboard() async {
-    try {
-      final res = await _dio.get(AppConstants.customerDashboardEndpoint);
-      return res.data as Map<String, dynamic>;
-    } on DioException catch (e) {
-      _handleDioError(e);
-    }
-  }
+  // ── Generic HTTP helpers ─────────────────────────────────────────────────
 
-  // ── Generic GET (for ad-hoc calls) ────────────────────────────────────────
-
-  static Future<dynamic> get(
-    String path, {
-    Map<String, dynamic>? queryParameters,
-  }) async {
+  static Future<dynamic> get(String path,
+      {Map<String, dynamic>? query}) async {
     try {
-      final res = await _dio.get(path, queryParameters: queryParameters);
+      final res = await _dio.get(path, queryParameters: query);
       return res.data;
     } on DioException catch (e) {
       _handleDioError(e);
     }
   }
 
-  static Future<dynamic> post(
-    String path, {
-    dynamic data,
-  }) async {
+  static Future<dynamic> post(String path, {dynamic data}) async {
     try {
       final res = await _dio.post(path, data: data);
       return res.data;
@@ -369,10 +356,7 @@ class ApiClient {
     }
   }
 
-  static Future<dynamic> patch(
-    String path, {
-    dynamic data,
-  }) async {
+  static Future<dynamic> patch(String path, {dynamic data}) async {
     try {
       final res = await _dio.patch(path, data: data);
       return res.data;
@@ -389,10 +373,8 @@ class ApiClient {
     }
   }
 
-  // ── Reports export ────────────────────────────────────────────────────────
+  // ── Reports export ───────────────────────────────────────────────────────
 
-  /// Downloads a CSV export for the given date range from the backend.
-  /// Returns raw bytes so the caller can trigger a browser download or save.
   static Future<Uint8List> exportReport({
     required DateTime start,
     required DateTime end,
@@ -418,7 +400,7 @@ class ApiClient {
 /// Thrown by [ApiClient] when a request fails.
 class ApiException implements Exception {
   final String message;
-  final int?   statusCode;
+  final int? statusCode;
 
   const ApiException(this.message, {this.statusCode});
 

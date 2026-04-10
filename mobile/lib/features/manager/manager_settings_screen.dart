@@ -107,8 +107,13 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
           ),
         ),
-        title: const Text('Manager Settings',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        title: const Text(
+          'Manager Settings',
+          style: TextStyle(
+            color: AppColors.textOnDark,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 48),
@@ -159,7 +164,7 @@ class _ManagerSettingsContent extends StatelessWidget {
           _buildCard([
             _Tile(
               icon: Icons.engineering_rounded,
-              iconColor: AppColors.online,
+              iconColor: AppColors.primary,
               title: 'Technician Performance',
               subtitle: 'Task completion, response times, open issues',
               trailing: const Icon(Icons.chevron_right_rounded,
@@ -168,7 +173,7 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.assignment_late_rounded,
-              iconColor: AppColors.severityHigh,
+              iconColor: AppColors.primaryDark,
               title: 'Unassigned Tasks',
               subtitle: 'Tasks not yet assigned to a technician',
               trailing: _UnassignedTasksBadge(),
@@ -176,7 +181,7 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.alarm_rounded,
-              iconColor: AppColors.degraded,
+              iconColor: AppColors.primaryLight,
               title: 'Auto-Escalate After',
               subtitle: 'Escalate unresolved issues after ${settings.autoEscalateH}h',
               isLast: true,
@@ -200,7 +205,7 @@ class _ManagerSettingsContent extends StatelessWidget {
           _buildCard([
             _Tile(
               icon: Icons.support_agent_rounded,
-              iconColor: AppColors.severityCritical,
+              iconColor: AppColors.primaryDark,
               title: 'Open Customer Alerts',
               subtitle: 'Active alerts affecting customer devices',
               trailing: _OpenAlertsBadge(),
@@ -208,7 +213,7 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.verified_rounded,
-              iconColor: AppColors.online,
+              iconColor: AppColors.primary,
               title: 'SLA Compliance',
               subtitle: 'Uptime & response time against SLA targets',
               trailing: const Icon(Icons.chevron_right_rounded,
@@ -251,7 +256,7 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.timer_rounded,
-              iconColor: AppColors.degraded,
+              iconColor: AppColors.primaryLight,
               title: 'MTTR Target',
               subtitle: 'Mean time to resolution: ${settings.mttrTargetHours}h',
               isLast: true,
@@ -275,7 +280,7 @@ class _ManagerSettingsContent extends StatelessWidget {
           _buildCard([
             _Tile(
               icon: Icons.crisis_alert_rounded,
-              iconColor: AppColors.severityCritical,
+              iconColor: AppColors.primaryDark,
               title: 'Critical Alerts',
               subtitle: 'Immediate push for severity=critical',
               trailing: Switch(
@@ -391,7 +396,7 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.logout_rounded,
-              iconColor: AppColors.severityCritical,
+              iconColor: AppColors.primaryDark,
               title: 'Sign Out',
               subtitle: 'Log out of the manager portal',
               isLast: true,
@@ -762,7 +767,7 @@ class _ManagerSettingsContent extends StatelessWidget {
               context.read<AuthProvider>().logout();
             },
             style: FilledButton.styleFrom(
-                backgroundColor: AppColors.severityCritical),
+              backgroundColor: AppColors.primaryDark),
             child: const Text('Sign Out'),
           ),
         ],
@@ -815,11 +820,11 @@ class _ManagerSettingsContent extends StatelessWidget {
                 _StatBox(label: 'Tasks', value: '$total',
                     color: AppColors.primaryDark),
                 _StatBox(label: 'Success', value: '$succeeded',
-                    color: AppColors.online),
+                  color: AppColors.primary),
                 _StatBox(label: 'Failed', value: '$failed',
-                    color: AppColors.offline),
+                  color: AppColors.primaryDark),
                 _StatBox(label: 'Pending', value: '$pending',
-                    color: AppColors.degraded),
+                  color: AppColors.primaryLight),
               ],
             ),
             const SizedBox(height: 16),
@@ -843,10 +848,10 @@ class _ManagerSettingsContent extends StatelessWidget {
                 minHeight:       10,
                 backgroundColor: AppColors.divider,
                 color: rate >= 80
-                    ? AppColors.online
-                    : rate >= 50
-                        ? AppColors.degraded
-                        : AppColors.offline,
+                  ? AppColors.primary
+                  : rate >= 50
+                    ? AppColors.primaryLight
+                    : AppColors.primaryDark,
               ),
             ),
             const SizedBox(height: 12),
@@ -854,22 +859,22 @@ class _ManagerSettingsContent extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color:        AppColors.severityCritical.withOpacity(0.08),
+                    color:        AppColors.primaryDark.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(8),
                   border:       Border.all(
-                      color: AppColors.severityCritical.withOpacity(0.3)),
+                      color: AppColors.primaryDark.withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
                     const Icon(Icons.warning_amber_rounded,
-                        color: AppColors.severityCritical, size: 18),
+                      color: AppColors.primaryDark, size: 18),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         '$failed task${failed == 1 ? '' : 's'} currently failing — review and reassign.',
                         style: const TextStyle(
-                            color: AppColors.severityCritical,
-                            fontSize: 13),
+                          color: AppColors.primaryDark,
+                          fontSize: 13),
                       ),
                     ),
                   ],
@@ -922,8 +927,8 @@ class _UnassignedTasksSheet extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
               child: Row(
                 children: [
-                  const Icon(Icons.assignment_late_rounded,
-                      color: AppColors.severityHigh),
+                    const Icon(Icons.assignment_late_rounded,
+                      color: AppColors.primaryDark),
                   const SizedBox(width: 8),
                   Text('Unassigned Tasks (${tasks.length})',
                       style: const TextStyle(
@@ -945,8 +950,8 @@ class _UnassignedTasksSheet extends StatelessWidget {
                       itemBuilder: (_, i) {
                         final t = tasks[i];
                         return ListTile(
-                          leading: const Icon(Icons.task_alt_rounded,
-                              color: AppColors.degraded),
+                            leading: const Icon(Icons.task_alt_rounded,
+                              color: AppColors.primaryLight),
                           title: Text(t.name),
                           subtitle: Text(t.deviceName ?? '—'),
                           trailing: Text(t.taskType,
@@ -984,7 +989,7 @@ class _CustomerAlertsSheet extends StatelessWidget {
               child: Row(
                 children: [
                   const Icon(Icons.support_agent_rounded,
-                      color: AppColors.severityCritical),
+                      color: AppColors.primaryDark),
                   const SizedBox(width: 8),
                   Text('Open Alerts (${alerts.length})',
                       style: const TextStyle(
@@ -1006,10 +1011,10 @@ class _CustomerAlertsSheet extends StatelessWidget {
                       itemBuilder: (_, i) {
                         final a = alerts[i];
                         final color = a.severity == 'critical'
-                            ? AppColors.severityCritical
+                          ? AppColors.primaryDark
                             : a.severity == 'high'
-                                ? AppColors.severityHigh
-                                : AppColors.degraded;
+                            ? AppColors.primary
+                            : AppColors.primaryLight;
                         return ListTile(
                           leading: Icon(Icons.warning_amber_rounded,
                               color: color),
@@ -1114,12 +1119,12 @@ class _OpenAlertsBadge extends StatelessWidget {
     final count = context.watch<AlertsProvider>().activeAlerts.length;
     if (count == 0) {
       return const Icon(Icons.check_circle_rounded,
-          color: AppColors.online, size: 20);
+          color: AppColors.primary, size: 20);
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color:        AppColors.severityCritical,
+        color:        AppColors.primaryDark,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text('$count',
@@ -1141,12 +1146,12 @@ class _UnassignedTasksBadge extends StatelessWidget {
         .length;
     if (count == 0) {
       return const Icon(Icons.check_circle_rounded,
-          color: AppColors.online, size: 20);
+          color: AppColors.primary, size: 20);
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color:        AppColors.severityHigh,
+        color:        AppColors.primaryLight,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text('$count',

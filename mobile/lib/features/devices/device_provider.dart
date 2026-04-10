@@ -15,9 +15,6 @@ import '../../services/database_helper.dart';
 ///   - Status filter chip (all / online / offline / degraded)
 ///   - Device type filter chip (all / router / switch / olt / access_point)
 ///   - Default sort: offline first, degraded second, online last
-///
-/// On integration day replace DummyData calls in loadDevices() with
-/// real API calls. The provider interface stays the same.
 class DeviceProvider extends ChangeNotifier {
   // ── State ─────────────────────────────────────────────────────────────────
   bool _isLoading = false;
@@ -26,6 +23,7 @@ class DeviceProvider extends ChangeNotifier {
   // ── Data ──────────────────────────────────────────────────────────────────
   List<DeviceModel> _allDevices = [];
   List<DeviceModel> _filteredDevices = [];
+  List<MetricModel> _latestMetrics = [];
 
   // ── Filter state ──────────────────────────────────────────────────────────
   String _searchQuery = '';
@@ -42,7 +40,6 @@ class DeviceProvider extends ChangeNotifier {
   int get totalCount => _allDevices.length;
   int get filteredCount => _filteredDevices.length;
 
-  /// True when any filter or search is active.
   bool get hasActiveFilters =>
       _searchQuery.isNotEmpty || _statusFilter != 'all' || _typeFilter != 'all';
 
@@ -122,100 +119,146 @@ class DeviceProvider extends ChangeNotifier {
 
   // ── Metric helper ─────────────────────────────────────────────────────────
 
-  /// Returns the latest metric snapshot for [deviceId], or null.
-  /// Uses the cached metrics fetched alongside devices.
   MetricModel? getLatestMetric(int deviceId) =>
       _latestMetrics.where((m) => m.deviceId == deviceId).firstOrNull;
 
-  List<MetricModel> _latestMetrics = [];
-
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
-  /// Adds a new device locally. On integration day replace with POST API call.
+  /// Adds a new device — optimistic local insert, then persists to API.
+  /// Returns true on success, false on failure (with errorMessage set).
   Future<bool> addDevice(DeviceModel device) async {
-    try {
-      _errorMessage = null;
-      // Optimistic add for fast UI response.
-      _allDevices = [..._allDevices, device];
-      _applyFilters();
-      notifyListeners();
-      if (!kIsWeb) {
-        await DatabaseHelper.instance.upsertDevice(device);
-      }
-      final saved = await _persistCreate(device);
-      if (!saved) {
-        _allDevices = _allDevices.where((d) => d.id != device.id).toList();
-        _applyFilters();
-        notifyListeners();
-        if (!kIsWeb) {
-          await DatabaseHelper.instance.deleteDevice(device.id);
-        }
-      }
-      return saved;
-    } catch (_) {
-      _errorMessage = 'Failed to save device locally.';
-      notifyListeners();
-      return false;
-    }
-  }
+    _errorMessage = null;
 
-  Future<bool> _persistCreate(DeviceModel device) async {
+    // Optimistic insert so the UI feels instant
+    final tempDevice = device;
+    _allDevices = [..._allDevices, tempDevice];
+    _applyFilters();
+    notifyListeners();
+
     try {
+      // POST to Django — response contains the real server-assigned ID
       final created = await ApiClient.createDevice(device);
+
+      // Replace the temp entry with the server-confirmed one
       _allDevices = _allDevices
-          .map((d) => d.id == device.id ? created : d)
+          .map((d) => d.id == tempDevice.id ? created : d)
           .toList();
       _applyFilters();
       notifyListeners();
+
+      // Update local cache with the real device
       if (!kIsWeb) {
-        await DatabaseHelper.instance.deleteDevice(device.id);
         await DatabaseHelper.instance.upsertDevice(created);
       }
       return true;
     } on ApiException catch (e) {
+      // Roll back optimistic insert
+      _allDevices = _allDevices.where((d) => d.id != tempDevice.id).toList();
+      _applyFilters();
       _errorMessage = e.message;
       notifyListeners();
       return false;
     } catch (_) {
-      _errorMessage = 'Failed to save device to server.';
+      // Roll back optimistic insert
+      _allDevices = _allDevices.where((d) => d.id != tempDevice.id).toList();
+      _applyFilters();
+      _errorMessage = 'Failed to save device. Please try again.';
       notifyListeners();
       return false;
     }
   }
 
+  /// Updates an existing device — optimistic local update, then persists to API.
   Future<bool> updateDevice(DeviceModel updated) async {
+    _errorMessage = null;
+
+    // Remember old state for rollback
+    final original = _allDevices.firstWhere(
+      (d) => d.id == updated.id,
+      orElse: () => updated,
+    );
+
+    // Optimistic update
+    _allDevices = _allDevices
+        .map((d) => d.id == updated.id ? updated : d)
+        .toList();
+    _applyFilters();
+    notifyListeners();
+
     try {
-      await Future.delayed(const Duration(milliseconds: 400));
+      final saved = await ApiClient.updateDevice(updated);
+
+      // Replace with server-confirmed version
       _allDevices = _allDevices
-          .map(
-            (d) => d.id == updated.id ? updated : d,
-          )
+          .map((d) => d.id == saved.id ? saved : d)
           .toList();
       _applyFilters();
       notifyListeners();
-      await DatabaseHelper.instance.upsertDevice(updated);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
 
-  Future<bool> deleteDevice(int deviceId) async {
-    try {
-      await Future.delayed(const Duration(milliseconds: 400));
-      _allDevices = _allDevices.where((d) => d.id != deviceId).toList();
+      if (!kIsWeb) {
+        await DatabaseHelper.instance.upsertDevice(saved);
+      }
+      return true;
+    } on ApiException catch (e) {
+      // Roll back
+      _allDevices = _allDevices
+          .map((d) => d.id == original.id ? original : d)
+          .toList();
       _applyFilters();
+      _errorMessage = e.message;
       notifyListeners();
-      await DatabaseHelper.instance.deleteDevice(deviceId);
-      return true;
+      return false;
     } catch (_) {
+      // Roll back
+      _allDevices = _allDevices
+          .map((d) => d.id == original.id ? original : d)
+          .toList();
+      _applyFilters();
+      _errorMessage = 'Failed to update device. Please try again.';
+      notifyListeners();
       return false;
     }
   }
 
-  /// Generates the next available ID (for local adds before API integration).
+  /// Deletes a device — optimistic local removal, then calls API.
+  Future<bool> deleteDevice(int deviceId) async {
+    _errorMessage = null;
+
+    // Remember for rollback
+    final removed = _allDevices.where((d) => d.id == deviceId).toList();
+
+    // Optimistic removal
+    _allDevices = _allDevices.where((d) => d.id != deviceId).toList();
+    _applyFilters();
+    notifyListeners();
+
+    try {
+      await ApiClient.deleteDevice(deviceId);
+
+      if (!kIsWeb) {
+        await DatabaseHelper.instance.deleteDevice(deviceId);
+      }
+      return true;
+    } on ApiException catch (e) {
+      // Roll back
+      _allDevices = [..._allDevices, ...removed];
+      _applyFilters();
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      // Roll back
+      _allDevices = [..._allDevices, ...removed];
+      _applyFilters();
+      _errorMessage = 'Failed to delete device. Please try again.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Generates the next available local ID (temporary, replaced by server ID).
   int get nextId {
-    if (_allDevices.isEmpty) return 1;
+    if (_allDevices.isEmpty) return -1; // negative = temp, server will assign real ID
     return _allDevices.map((d) => d.id).reduce((a, b) => a > b ? a : b) + 1;
   }
 
@@ -223,9 +266,6 @@ class DeviceProvider extends ChangeNotifier {
 
   void _applyFilters() {
     _filteredDevices = _allDevices.where((device) {
-      // ── Text search ───────────────────────────────────────────────
-      // Matches name, IP address, location, and human-readable type label
-      // (e.g. "access point" matches deviceType 'access_point')
       final q = _searchQuery;
       final typeLabel =
           AppUtils.deviceTypeLabel(device.deviceType).toLowerCase();
@@ -235,22 +275,18 @@ class DeviceProvider extends ChangeNotifier {
           (device.location?.toLowerCase().contains(q) ?? false) ||
           typeLabel.contains(q);
 
-      // ── Status filter ─────────────────────────────────────────────
       final matchesStatus =
           _statusFilter == 'all' || device.status == _statusFilter;
 
-      // ── Type filter ───────────────────────────────────────────────
       final matchesType =
           _typeFilter == 'all' || device.deviceType == _typeFilter;
 
       return matchesSearch && matchesStatus && matchesType;
     }).toList()
-      // Sort: offline → degraded → online (problem devices surface first)
       ..sort((a, b) =>
           _statusPriority(a.status).compareTo(_statusPriority(b.status)));
   }
 
-  /// Lower number = shown first.
   int _statusPriority(String status) {
     switch (status) {
       case AppConstants.statusOffline:

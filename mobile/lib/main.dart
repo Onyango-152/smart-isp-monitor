@@ -5,6 +5,7 @@ import 'core/theme.dart';
 import 'core/theme_provider.dart';
 import 'services/connectivity_provider.dart';
 import 'features/alerts/alert_detail_screen.dart';
+import 'features/alerts/alerts_provider.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/auth/email_verify_screen.dart';
 import 'features/auth/forgot_password_screen.dart';
@@ -15,12 +16,14 @@ import 'features/dashboard/technician_shell.dart';
 import 'features/devices/device_detail_screen.dart';
 import 'features/devices/device_form_screen.dart';
 import 'features/devices/diagnostic_screen.dart';
+import 'features/devices/device_provider.dart';
 import 'features/manager/manager_shell.dart';
 import 'features/notifications/notifications_screen.dart';
 import 'features/reports/report_detail_screen.dart';
 import 'features/splash/splash_screen.dart';
 import 'features/clients/client_form_screen.dart';
 import 'features/tasks/task_form_screen.dart';
+import 'features/tasks/tasks_provider.dart';
 import 'features/troubleshoot/troubleshoot_screen.dart';
 import 'services/notification_service.dart';
 
@@ -40,6 +43,7 @@ class SmartISPApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
+        ChangeNotifierProvider(create: (_) => DeviceProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (_, themeProvider, __) => MaterialApp(
@@ -94,11 +98,28 @@ class SmartISPApp extends StatelessWidget {
       case AppConstants.troubleshootRoute:
         return _slideRoute(settings, const TroubleshootScreen());
       case AppConstants.alertDetailRoute:
-        return _slideRoute(settings, const AlertDetailScreen());
+        return _slideRoute(
+          settings,
+          ChangeNotifierProvider(
+            create: (_) => AlertsProvider()..loadAlerts(),
+            child: const AlertDetailScreen(),
+          ),
+        );
       case AppConstants.reportsRoute:
         return _slideRoute(settings, const ReportDetailScreen());
       case AppConstants.taskFormRoute:
-        return _slideRoute(settings, const TaskFormScreen());
+        return _slideRoute(
+          settings,
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider(
+                  create: (_) => TasksProvider()..loadTasks()),
+              ChangeNotifierProvider(
+                  create: (_) => DeviceProvider()..loadDevices()),
+            ],
+            child: const TaskFormScreen(),
+          ),
+        );
       case AppConstants.clientFormRoute:
         return _slideRoute(settings, const ClientFormScreen());
 

@@ -72,9 +72,9 @@ class _TasksScreenState extends State<TasksScreen>
               }
             },
             backgroundColor: AppColors.primary,
-            icon:  const Icon(Icons.add_rounded, color: Colors.white),
+            icon:  const Icon(Icons.add_rounded, color: AppColors.textOnDark),
             label: const Text('New Task',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              style: TextStyle(color: AppColors.textOnDark, fontWeight: FontWeight.w600)),
           ),
         );
       },
@@ -91,7 +91,7 @@ class _TasksScreenState extends State<TasksScreen>
         icon:        Icons.cloud_off_rounded,
         title:       'Could Not Load Tasks',
         message:     provider.errorMessage!,
-        color:       AppColors.offline,
+        color:       AppColors.primaryDark,
         actionLabel: 'Retry',
         onAction:    provider.loadTasks,
       );
@@ -100,7 +100,6 @@ class _TasksScreenState extends State<TasksScreen>
     return Column(
       children: [
         _buildSearchBar(provider),
-        _buildFilterRow(provider),
         if (provider.hasActiveFilters) _buildResultsBar(provider),
         const Divider(height: 1),
         Expanded(
@@ -197,7 +196,7 @@ class _TasksScreenState extends State<TasksScreen>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color:        AppColors.offline,
+                      color:        AppColors.primaryDark,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -308,19 +307,19 @@ class _TasksScreenState extends State<TasksScreen>
             label:    'Ping',
             selected: provider.typeFilter == 'ping',
             onTap:    () => provider.setTypeFilter('ping'),
-            color:    AppColors.online,
+            color:    AppColors.primaryLight,
           ),
           _FilterChip(
             label:    'HTTP',
             selected: provider.typeFilter == 'http',
             onTap:    () => provider.setTypeFilter('http'),
-            color:    AppColors.degraded,
+            color:    AppColors.primaryDark,
           ),
           _FilterChip(
             label:    'TCP',
             selected: provider.typeFilter == 'tcp',
             onTap:    () => provider.setTypeFilter('tcp'),
-            color:    AppColors.maintenance,
+            color:    AppColors.primaryDark,
           ),
           _FilterChip(
             label:    'DNS',
@@ -340,14 +339,14 @@ class _TasksScreenState extends State<TasksScreen>
             selected: provider.statusFilter == 'success',
             onTap:    () => provider.setStatusFilter(
                 provider.statusFilter == 'success' ? 'all' : 'success'),
-            color:    AppColors.online,
+            color:    AppColors.primary,
           ),
           _FilterChip(
             label:    'Failed',
             selected: provider.statusFilter == 'failed',
             onTap:    () => provider.setStatusFilter(
                 provider.statusFilter == 'failed' ? 'all' : 'failed'),
-            color:    AppColors.offline,
+            color:    AppColors.primaryDark,
           ),
         ],
       ),
@@ -366,7 +365,8 @@ class _TasksScreenState extends State<TasksScreen>
         children: [
           Text('Showing $showing of $total', style: AppTextStyles.bodySmall),
           const Spacer(),
-          TextButton(
+          TextButton.icon(
+            icon: const Icon(Icons.filter_alt_off_rounded, size: 16),
             onPressed: () {
               _searchController.clear();
               AppUtils.hapticSelect();
@@ -376,8 +376,8 @@ class _TasksScreenState extends State<TasksScreen>
               foregroundColor: AppColors.primary,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             ),
-            child: Text('Clear Filters',
-                style: AppTextStyles.label.copyWith(color: AppColors.primary)),
+            label: Text('Clear Filters',
+              style: AppTextStyles.label.copyWith(color: AppColors.primary)),
           ),
         ],
       ),
@@ -405,7 +405,7 @@ class _TasksScreenState extends State<TasksScreen>
           message: isEnabled
               ? 'All monitoring tasks are currently disabled.'
               : 'All tasks are active. Disable tasks to see them here.',
-          color:   isEnabled ? AppColors.online : null,
+          color:   isEnabled ? AppColors.primary : null,
         );
       }
 
@@ -413,7 +413,7 @@ class _TasksScreenState extends State<TasksScreen>
         icon:        Icons.filter_list_off_rounded,
         title:       'No Matching Tasks',
         message:     'No ${isEnabled ? "enabled" : "disabled"} tasks match the current filters.',
-        color:       AppColors.degraded,
+        color:       AppColors.primary,
         actionLabel: 'Clear Filters',
         onAction: () {
           _searchController.clear();
@@ -448,7 +448,7 @@ class _TaskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider    = context.read<TasksProvider>();
     final typeColor   = _typeColor(task.taskType);
-    final statusColor = TasksProvider.statusColor(task.lastStatus);
+    final statusColor = _statusBlue(task.lastStatus);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -483,21 +483,9 @@ class _TaskCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Top row: type icon, name, status badge ──────────────
+                // ── Top row: name + status badge ───────────────────────
                 Row(
                   children: [
-                    Container(
-                      width: 34, height: 34,
-                      decoration: BoxDecoration(
-                        color: typeColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        TasksProvider.taskTypeIcon(task.taskType),
-                        size: 18, color: typeColor,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -524,8 +512,7 @@ class _TaskCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        task.lastStatus[0].toUpperCase() +
-                            task.lastStatus.substring(1),
+                        _statusLabel(task.lastStatus),
                         style: TextStyle(
                           color:      statusColor,
                           fontSize:   10,
@@ -586,7 +573,7 @@ class _TaskCard extends StatelessWidget {
                       const SizedBox(width: 6),
                       _QuickActionButton(
                         icon:    Icons.play_arrow_rounded,
-                        color:   AppColors.online,
+                        color:   AppColors.primary,
                         tooltip: 'Run Now',
                         onTap: () {
                           AppUtils.hapticSelect();
@@ -608,13 +595,43 @@ class _TaskCard extends StatelessWidget {
 
   Color _typeColor(String type) {
     switch (type) {
-      case 'snmp': return AppColors.primary;
-      case 'ping': return AppColors.online;
-      case 'http': return AppColors.degraded;
-      case 'tcp':  return AppColors.maintenance;
-      case 'dns':  return const Color(0xFF0891B2); // cyan-600
-      default:     return AppColors.unknown;
+      case 'install': return AppColors.primary;
+      case 'survey': return AppColors.primaryLight;
+      case 'fault': return AppColors.primaryDark;
+      case 'maintenance': return AppColors.primaryLight;
+      case 'change': return AppColors.primaryDark;
+      case 'audit': return AppColors.primaryLight;
+      case 'expansion': return AppColors.primaryDark;
+      case 'support': return AppColors.primary;
+      case 'marketing': return AppColors.primaryDark;
+      default: return AppColors.primaryLight.withOpacity(0.6);
     }
+  }
+}
+
+Color _statusBlue(String status) {
+  switch (status) {
+    case 'completed':
+      return AppColors.primary;
+    case 'partial':
+      return AppColors.primaryLight;
+    case 'not_done':
+      return AppColors.primaryDark;
+    default:
+      return AppColors.primaryLight.withOpacity(0.6);
+  }
+}
+
+String _statusLabel(String status) {
+  switch (status) {
+    case 'completed':
+      return 'Completed';
+    case 'partial':
+      return 'Partially done';
+    case 'not_done':
+      return 'Not done';
+    default:
+      return status.replaceAll('_', ' ').trim();
   }
 }
 

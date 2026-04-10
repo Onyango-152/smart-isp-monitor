@@ -87,25 +87,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          AppUtils.haptic();
-          final added = await Navigator.of(context).pushNamed(
-            AppConstants.deviceFormRoute,
-          );
-          if (added == true && context.mounted) {
-            AppUtils.showSnackbar(context, 'Device added successfully');
-          }
-        },
-          icon:  const Icon(Icons.add_rounded, color: AppColors.textOnDark),
-        label: const Text(
-          'Add Device',
-          style: TextStyle(
-            color:      AppColors.textOnDark,
-              fontWeight: FontWeight.w600,
-              fontSize:   14),
-        ),
-      ),
+      floatingActionButton: null,
     );
   }
 
@@ -284,7 +266,8 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
           Text(label, style: AppTextStyles.bodySmall),
           if (provider.hasActiveFilters) ...[
             const Spacer(),
-            TextButton(
+            TextButton.icon(
+              icon: const Icon(Icons.filter_alt_off_rounded, size: 16),
               onPressed: () {
                 _searchController.clear();
                 AppUtils.hapticSelect();
@@ -295,7 +278,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 4),
               ),
-              child: Text('Clear Filters',
+              label: Text('Clear Filters',
                   style: AppTextStyles.label.copyWith(
                     color: AppColors.primary,
                   )),
@@ -319,7 +302,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
         message: isSearchEmpty
             ? 'No devices match "${provider.searchQuery}". Try different keywords.'
             : 'No devices match the selected filters.',
-        color:           AppColors.degraded,
+        color:           AppColors.primary,
         animate:         false,
         actionLabel:     isSearchEmpty ? 'Clear Search' : 'Clear Filters',
         onAction: () {

@@ -163,7 +163,7 @@ class TasksProvider extends ChangeNotifier {
     if (index == -1) return;
     _allTasks[index] = _allTasks[index].copyWith(
       lastRun: DateTime.now().toUtc().toIso8601String(),
-      lastStatus: 'success',
+      lastStatus: 'completed',
     );
     _applyFilters();
     notifyListeners();
@@ -217,16 +217,24 @@ class TasksProvider extends ChangeNotifier {
   /// Human-readable label for a task type.
   static String taskTypeLabel(String type) {
     switch (type) {
-      case 'snmp':
-        return 'SNMP Poll';
-      case 'ping':
-        return 'ICMP Ping';
-      case 'http':
-        return 'HTTP Check';
-      case 'tcp':
-        return 'TCP Connect';
-      case 'dns':
-        return 'DNS Lookup';
+      case 'install':
+        return 'Client Install';
+      case 'survey':
+        return 'Site Survey';
+      case 'fault':
+        return 'Fault Resolution';
+      case 'maintenance':
+        return 'Preventive Maintenance';
+      case 'change':
+        return 'Network Change';
+      case 'audit':
+        return 'Field Audit';
+      case 'expansion':
+        return 'Network Expansion';
+      case 'support':
+        return 'Customer Support';
+      case 'marketing':
+        return 'Marketing Activity';
       default:
         return type.toUpperCase();
     }
@@ -235,16 +243,24 @@ class TasksProvider extends ChangeNotifier {
   /// Icon for a task type.
   static IconData taskTypeIcon(String type) {
     switch (type) {
-      case 'snmp':
-        return Icons.poll_rounded;
-      case 'ping':
-        return Icons.network_ping_rounded;
-      case 'http':
-        return Icons.language_rounded;
-      case 'tcp':
-        return Icons.cable_rounded;
-      case 'dns':
-        return Icons.dns_rounded;
+      case 'install':
+        return Icons.router_rounded;
+      case 'survey':
+        return Icons.map_rounded;
+      case 'fault':
+        return Icons.build_rounded;
+      case 'maintenance':
+        return Icons.handyman_rounded;
+      case 'change':
+        return Icons.swap_horiz_rounded;
+      case 'audit':
+        return Icons.fact_check_rounded;
+      case 'expansion':
+        return Icons.cell_tower_rounded;
+      case 'support':
+        return Icons.support_agent_rounded;
+      case 'marketing':
+        return Icons.campaign_rounded;
       default:
         return Icons.task_alt_rounded;
     }
@@ -253,12 +269,12 @@ class TasksProvider extends ChangeNotifier {
   /// Colour for a task's last_status.
   static Color statusColor(String status) {
     switch (status) {
-      case 'success':
+      case 'completed':
         return const Color(0xFF16A34A); // green
-      case 'failed':
-        return const Color(0xFFDC2626); // red
-      case 'pending':
+      case 'partial':
         return const Color(0xFFD97706); // amber
+      case 'not_done':
+        return const Color(0xFFDC2626); // red
       default:
         return const Color(0xFF64748B); // grey
     }
