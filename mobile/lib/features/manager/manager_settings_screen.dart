@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
-import '../../core/theme_provider.dart';
 import '../../core/utils.dart';
+import '../../core/constants.dart';
 import '../../data/models/alert_model.dart';
 import '../../data/models/task_model.dart';
 import '../../services/api_client.dart';
@@ -21,7 +21,6 @@ class ManagerSettingsProvider extends ChangeNotifier {
   bool _alertsAllSeverity = false;
   bool _dailySummary      = true;
   bool _weeklyReport      = true;
-  bool _systemEvents      = true;
 
   // SLA targets
   double _slaUptimeTarget = 99.0;   // percentage
@@ -29,21 +28,14 @@ class ManagerSettingsProvider extends ChangeNotifier {
   int    _mttrTargetHours = 4;      // hours
   int    _autoEscalateH   = 24;     // hours before auto-escalate
 
-  // Display
-  int _refreshInterval = 30; // seconds
-  bool _compactList    = false;
-
   bool   get alertsCritical    => _alertsCritical;
   bool   get alertsAllSeverity => _alertsAllSeverity;
   bool   get dailySummary      => _dailySummary;
   bool   get weeklyReport      => _weeklyReport;
-  bool   get systemEvents      => _systemEvents;
   double get slaUptimeTarget   => _slaUptimeTarget;
   int    get slaRespMinutes    => _slaRespMinutes;
   int    get mttrTargetHours   => _mttrTargetHours;
   int    get autoEscalateH     => _autoEscalateH;
-  int    get refreshInterval   => _refreshInterval;
-  bool   get compactList       => _compactList;
 
   void toggle(String key) {
     switch (key) {
@@ -51,8 +43,6 @@ class ManagerSettingsProvider extends ChangeNotifier {
       case 'alertsAllSeverity': _alertsAllSeverity = !_alertsAllSeverity; break;
       case 'dailySummary':      _dailySummary      = !_dailySummary;      break;
       case 'weeklyReport':      _weeklyReport      = !_weeklyReport;      break;
-      case 'systemEvents':      _systemEvents      = !_systemEvents;      break;
-      case 'compactList':       _compactList       = !_compactList;       break;
     }
     notifyListeners();
   }
@@ -61,7 +51,6 @@ class ManagerSettingsProvider extends ChangeNotifier {
   void setSlaRespMinutes(int v)      { _slaRespMinutes  = v; notifyListeners(); }
   void setMttrTarget(int v)         { _mttrTargetHours = v; notifyListeners(); }
   void setAutoEscalate(int v)       { _autoEscalateH   = v; notifyListeners(); }
-  void setRefreshInterval(int v)    { _refreshInterval  = v; notifyListeners(); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -91,7 +80,6 @@ class _ManagerSettingsContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth     = context.read<AuthProvider>();
     final settings = context.watch<ManagerSettingsProvider>();
-    final theme    = context.watch<ThemeProvider>();
     final user     = auth.currentUser;
 
     return Scaffold(
@@ -118,7 +106,6 @@ class _ManagerSettingsContent extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 48),
         children: [
-
           // ── Profile ────────────────────────────────────────────────────
           _buildProfileCard(context, user),
 
@@ -144,16 +131,6 @@ class _ManagerSettingsContent extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right_rounded,
                   color: AppColors.textSecondary),
               onTap: () => _generateReport(context),
-            ),
-            _Tile(
-              icon: Icons.api_rounded,
-              iconColor: AppColors.primaryLight,
-              title: 'API & Integration Settings',
-              subtitle: 'SNMP community, polling intervals, endpoints',
-              isLast: true,
-              trailing: const Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary),
-              onTap: () => _showApiSettings(context),
             ),
           ]),
 
@@ -322,47 +299,6 @@ class _ManagerSettingsContent extends StatelessWidget {
                 activeColor: AppColors.primary,
               ),
             ),
-            _Tile(
-              icon: Icons.info_rounded,
-              iconColor: AppColors.textSecondary,
-              title: 'System Events',
-              subtitle: 'Server health, config changes, user logins',
-              isLast: true,
-              trailing: Switch(
-                value: settings.systemEvents,
-                onChanged: (_) => settings.toggle('systemEvents'),
-                activeColor: AppColors.primary,
-              ),
-            ),
-          ]),
-
-          const SizedBox(height: 4),
-
-          // ── Display ────────────────────────────────────────────────────
-          const _SectionHeader('Display'),
-          _buildCard([
-            _Tile(
-              icon: Icons.dark_mode_rounded,
-              iconColor: AppColors.primaryDark,
-              title: 'Dark Mode',
-              subtitle: 'Switch to dark colour scheme',
-              trailing: Switch(
-                value: theme.isDarkMode,
-                onChanged: theme.setDarkMode,
-              ),
-            ),
-            _Tile(
-              icon: Icons.view_list_rounded,
-              iconColor: AppColors.primaryLight,
-              title: 'Compact List View',
-              subtitle: 'Smaller rows to display more on screen',
-              isLast: true,
-              trailing: Switch(
-                value: settings.compactList,
-                onChanged: (_) => settings.toggle('compactList'),
-                activeColor: AppColors.primary,
-              ),
-            ),
           ]),
 
           const SizedBox(height: 4),
@@ -370,16 +306,6 @@ class _ManagerSettingsContent extends StatelessWidget {
           // ── System ─────────────────────────────────────────────────────
           const _SectionHeader('System'),
           _buildCard([
-            _Tile(
-              icon: Icons.sync_rounded,
-              iconColor: AppColors.primaryLight,
-              title: 'Dashboard Refresh',
-              subtitle: 'Auto-reload every ${settings.refreshInterval}s',
-              trailing: _PickerChip(
-                value: '${settings.refreshInterval}s',
-                onTap: () => _pickRefresh(context, settings),
-              ),
-            ),
             _Tile(
               icon: Icons.info_outline_rounded,
               iconColor: AppColors.textSecondary,
@@ -553,9 +479,6 @@ class _ManagerSettingsContent extends StatelessWidget {
         'Report generation — backend export endpoint coming soon');
   }
 
-  void _showApiSettings(BuildContext context) {
-    AppUtils.showSnackbar(context, 'API settings coming soon');
-  }
 
   void _showTechnicianPerformance(BuildContext context) {
     final tasks = context.read<TasksProvider>().tasks;
@@ -710,48 +633,9 @@ class _ManagerSettingsContent extends StatelessWidget {
     );
   }
 
-  void _pickRefresh(BuildContext context, ManagerSettingsProvider s) {
-    _pickOptions(
-      context: context,
-      label: 'Dashboard Refresh',
-      current: s.refreshInterval,
-      options: const [15, 30, 60, 120, 300],
-      labelFor: (v) => v < 60 ? '${v}s' : '${v ~/ 60}m',
-      onSelected: s.setRefreshInterval,
-    );
-  }
-
-  void _pickOptions<T>({
-    required BuildContext context,
-    required String label,
-    required T current,
-    required List<T> options,
-    required String Function(T) labelFor,
-    required ValueChanged<T> onSelected,
-  }) {
-    showDialog<void>(
-      context: context,
-      builder: (_) => SimpleDialog(
-        title: Text(label),
-        children: options
-            .map((o) => RadioListTile<T>(
-                  title: Text(labelFor(o)),
-                  value: o,
-                  groupValue: current,
-                  onChanged: (v) {
-                    if (v != null) {
-                      onSelected(v);
-                      Navigator.pop(context);
-                    }
-                  },
-                  activeColor: AppColors.primary,
-                ))
-            .toList(),
-      ),
-    );
-  }
 
   void _confirmSignOut(BuildContext context) {
+    final parentContext = context;
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
@@ -762,9 +646,19 @@ class _ManagerSettingsContent extends StatelessWidget {
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.read<AuthProvider>().logout();
+            onPressed: () async {
+              Navigator.of(context).pop();
+              try {
+                await parentContext.read<AuthProvider>().logout();
+              } catch (_) {
+                // Fall through to navigation even if logout cleanup fails.
+              }
+              if (!parentContext.mounted) return;
+              Navigator.of(parentContext, rootNavigator: true)
+                  .pushNamedAndRemoveUntil(
+                AppConstants.loginRoute,
+                (route) => false,
+              );
             },
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primaryDark),
