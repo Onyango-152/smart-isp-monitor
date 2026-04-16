@@ -13,7 +13,8 @@ def _snmp_cycle() -> None:
     """Poll all SNMP-enabled devices and evaluate alert rules."""
     from devices.models import Device
     from utils.snmp_poller import poll_device, save_poll_results
-    from utils.alert_engine import evaluate_rules
+    from utils.alert_engine import evaluate_rules, sync_threshold_rules
+    from utils.predictive import compute_predictions
 
     devices = (
         Device.objects
@@ -34,11 +35,17 @@ def _snmp_cycle() -> None:
             logger.warning('Poll failed for %s: %s', device.name, exc)
 
     try:
+        sync_threshold_rules()
         new_alerts = evaluate_rules()
         if new_alerts:
             logger.info('%d new alert(s) raised by alert engine.', new_alerts)
     except Exception as exc:
         logger.warning('Alert engine error: %s', exc)
+
+    try:
+        compute_predictions()
+    except Exception as exc:
+        logger.warning('Predictive tracking error: %s', exc)
 
 
 def start() -> None:
@@ -46,6 +53,11 @@ def start() -> None:
     global _scheduler
     if _scheduler and _scheduler.running:
         return
+    try:
+        from utils.alert_engine import ensure_default_rules
+        ensure_default_rules()
+    except Exception as exc:
+        logger.warning('Could not seed default alert rules: %s', exc)
     _scheduler = BackgroundScheduler(timezone='UTC')
     _scheduler.add_job(
         _snmp_cycle,

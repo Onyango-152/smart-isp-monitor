@@ -20,4 +20,7 @@ urlpatterns = [
     # Metric thresholds and alerting
     path('thresholds/',                  views.MetricThresholdListView.as_view(),     name='threshold-list'),
     path('thresholds/<int:pk>/',         views.MetricThresholdDetailView.as_view(),   name='threshold-detail'),
+
+    # Metric predictions
+    path('predictions/',                 views.MetricPredictionListView.as_view(),    name='prediction-list'),
 ]

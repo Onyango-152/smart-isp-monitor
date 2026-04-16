@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Metric, MetricReading, MetricThreshold
+from .models import Metric, MetricReading, MetricThreshold, MetricPrediction
 
 
 class MetricSerializer(serializers.ModelSerializer):
@@ -64,3 +64,18 @@ class MetricThresholdSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         )
         read_only_fields = ('created_at', 'updated_at')
+
+
+class MetricPredictionSerializer(serializers.ModelSerializer):
+    device_name = serializers.CharField(source='device.name', read_only=True)
+    metric_name = serializers.CharField(source='metric.name', read_only=True)
+    metric_unit = serializers.CharField(source='metric.unit', read_only=True)
+
+    class Meta:
+        model = MetricPrediction
+        fields = (
+            'id', 'device', 'device_name', 'metric', 'metric_name', 'metric_unit',
+            'predicted_value', 'slope_per_min', 'risk_level',
+            'horizon_minutes', 'generated_at'
+        )
+        read_only_fields = ('generated_at',)

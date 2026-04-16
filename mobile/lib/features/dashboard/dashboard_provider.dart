@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../data/models/device_model.dart';
 import '../../data/models/alert_model.dart';
+import '../../data/models/metric_prediction_model.dart';
 import '../../core/constants.dart';
 import '../../data/dummy_data.dart';
 import '../../services/api_client.dart';
@@ -25,6 +26,7 @@ class DashboardProvider extends ChangeNotifier {
   List<DeviceModel> _devices = [];
   List<AlertModel> _activeAlerts = [];
   List<Map<String, dynamic>> _weeklyFaults = [];
+  List<MetricPredictionModel> _predictions = [];
 
   // ── Getters — state ───────────────────────────────────────────────────────
   bool get isLoading => _isLoading;
@@ -48,6 +50,12 @@ class DashboardProvider extends ChangeNotifier {
 
   /// Full active alert list — used by the alerts tab badge count.
   List<AlertModel> get activeAlerts => _activeAlerts;
+
+  List<MetricPredictionModel> get predictions => _predictions;
+
+  List<MetricPredictionModel> get highRiskPredictions => _predictions
+      .where((p) => p.riskLevel == 'high' || p.riskLevel == 'critical')
+      .toList();
 
   /// Top 3 most recent unresolved alerts — shown in the dashboard preview.
   List<AlertModel> get recentAlerts {
@@ -204,11 +212,13 @@ class DashboardProvider extends ChangeNotifier {
         ApiClient.getDashboardSummary(),
         ApiClient.getDevices(),
         ApiClient.getAlerts(),
+        ApiClient.getMetricPredictions(),
       ]);
 
       _summary = results[0] as Map<String, dynamic>;
       _devices = results[1] as List<DeviceModel>;
       final allAlerts = results[2] as List<AlertModel>;
+      _predictions = results[3] as List<MetricPredictionModel>;
       _activeAlerts = allAlerts.where((a) => !a.isResolved).toList();
 
       // Build weekly fault counts from alert data
@@ -233,6 +243,7 @@ class DashboardProvider extends ChangeNotifier {
       _summary = Map<String, dynamic>.from(DummyData.dashboardSummary);
       _devices = List<DeviceModel>.from(DummyData.devices);
       final allAlerts = List<AlertModel>.from(DummyData.alerts);
+      _predictions = List<MetricPredictionModel>.from(DummyData.metricPredictions);
       _activeAlerts = allAlerts.where((a) => !a.isResolved).toList();
 
       final now = DateTime.now();

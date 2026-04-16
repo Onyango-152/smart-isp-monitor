@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Metric, MetricReading, MetricThreshold
+from .models import Metric, MetricReading, MetricThreshold, MetricPrediction
 
 
 @admin.register(Metric)
@@ -57,4 +57,12 @@ class MetricThresholdAdmin(admin.ModelAdmin):
             'fields': ('is_active',)
         }),
     )
+
+
+@admin.register(MetricPrediction)
+class MetricPredictionAdmin(admin.ModelAdmin):
+    list_display = ('device', 'metric', 'predicted_value', 'risk_level', 'generated_at')
+    list_filter = ('risk_level', 'metric', 'generated_at')
+    search_fields = ('device__name', 'metric__name')
+    readonly_fields = ('generated_at',)
 

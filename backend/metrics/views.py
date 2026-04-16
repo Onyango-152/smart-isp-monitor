@@ -6,10 +6,11 @@ from django.db.models import Avg, Max, Min
 from django.utils import timezone
 from datetime import timedelta
 
-from .models import Metric, MetricReading, MetricThreshold
+from .models import Metric, MetricReading, MetricThreshold, MetricPrediction
 from devices.models import Device
 from .serializers import (
     MetricSerializer, MetricReadingSerializer, MetricThresholdSerializer
+    , MetricPredictionSerializer
 )
 
 # Maps normalised metric names (lower-case, spaces→underscores) to the flat
@@ -33,6 +34,10 @@ _METRIC_FIELD_MAP = {
     'errors':             'interface_errors',
     'uptime':             'uptime_seconds',
     'uptime_seconds':     'uptime_seconds',
+    'mac_table_entries':  'mac_table_entries',
+    'mac_table':          'mac_table_entries',
+    'power_load':         'power_load_pct',
+    'power_load_pct':     'power_load_pct',
 }
 
 
@@ -83,6 +88,8 @@ class DeviceMetricSnapshotListView(APIView):
                 'memory_usage_pct': None,
                 'interface_errors': None,
                 'uptime_seconds':   None,
+                'mac_table_entries': None,
+                'power_load_pct':   None,
                 'poll_method':      'auto',
                 'recorded_at':      timezone.now().isoformat(),
             }
@@ -230,6 +237,16 @@ class MetricThresholdListView(generics.ListCreateAPIView):
     serializer_class = MetricThresholdSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        device_id = self.request.query_params.get('device')
+        metric_id = self.request.query_params.get('metric')
+        if device_id:
+            queryset = queryset.filter(device_id=device_id)
+        if metric_id:
+            queryset = queryset.filter(metric_id=metric_id)
+        return queryset
+
 
 class MetricThresholdDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
@@ -242,4 +259,25 @@ class MetricThresholdDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MetricThreshold.objects.all()
     serializer_class = MetricThresholdSerializer
     permission_classes = [IsAuthenticated]
+
+
+class MetricPredictionListView(generics.ListAPIView):
+    """
+    Metric Predictions
+
+    GET: List latest predictions. Supports ?device=<id> or ?metric=<id>
+    """
+    queryset = MetricPrediction.objects.all().order_by('-generated_at')
+    serializer_class = MetricPredictionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        device_id = self.request.query_params.get('device')
+        metric_id = self.request.query_params.get('metric')
+        if device_id:
+            queryset = queryset.filter(device_id=device_id)
+        if metric_id:
+            queryset = queryset.filter(metric_id=metric_id)
+        return queryset
 

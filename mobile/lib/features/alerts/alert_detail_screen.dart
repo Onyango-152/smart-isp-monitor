@@ -254,6 +254,13 @@ class AlertDetailScreen extends StatelessWidget {
               ),
             ),
 
+            // ── Recommended Actions ─────────────────────────────────────
+            const SectionHeader(title: 'Recommended Actions'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _ActionList(actions: _recommendedActions(alert.alertType)),
+            ),
+
             // ── Raw Metric Details ────────────────────────────────────────
             if (alert.details != null &&
                 alert.details!.isNotEmpty) ...[
@@ -559,6 +566,97 @@ class AlertDetailScreen extends StatelessWidget {
       case 'predictive':       return Icons.analytics;
       default:                 return Icons.warning_amber;
     }
+  }
+
+  List<String> _recommendedActions(String alertType) {
+    switch (alertType) {
+      case 'high_latency':
+        return [
+          'Check upstream link utilization for congestion.',
+          'Verify interface errors and queue drops on the edge port.',
+          'Run a focused ping/trace to isolate the slow hop.',
+        ];
+      case 'packet_loss':
+        return [
+          'Inspect interface errors and CRC counters.',
+          'Check duplex/MTU mismatch on the access port.',
+          'Confirm no loops or broadcast storms on the segment.',
+        ];
+      case 'high_cpu':
+        return [
+          'Review CPU-heavy processes and routing table size.',
+          'Check for control plane storms or excessive polling.',
+          'Consider moving non-critical services off the device.',
+        ];
+      case 'high_memory':
+        return [
+          'Inspect memory leaks or unusually large tables.',
+          'Clear stale sessions if safe to do so.',
+          'Schedule a maintenance restart if usage keeps rising.',
+        ];
+      case 'mac_table_saturation':
+        return [
+          'Identify the access port with excessive MACs.',
+          'Check for unmanaged switches or loops.',
+          'Apply port security limits to prevent flooding.',
+        ];
+      case 'power_load':
+        return [
+          'Verify UPS load and remaining headroom.',
+          'Check for recent power events or battery health.',
+          'Reduce load or balance circuits if possible.',
+        ];
+      default:
+        return [
+          'Review related device metrics and recent changes.',
+          'Acknowledge and monitor if the issue is transient.',
+          'Escalate to field team if the alert persists.',
+        ];
+    }
+  }
+}
+
+class _ActionList extends StatelessWidget {
+  final List<String> actions;
+  const _ActionList({required this.actions});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: Column(
+        children: actions.map((text) {
+          final isLast = text == actions.last;
+          return Padding(
+            padding: EdgeInsets.only(bottom: isLast ? 0 : 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.check_circle_outline,
+                    size: 18, color: AppColors.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    text,
+                    style: AppTextStyles.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }
 

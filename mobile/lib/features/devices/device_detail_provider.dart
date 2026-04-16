@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../data/models/device_model.dart';
 import '../../data/models/metric_model.dart';
 import '../../data/models/alert_model.dart';
+import '../../data/models/metric_type_model.dart';
+import '../../data/models/metric_threshold_model.dart';
 import '../../services/api_client.dart';
 
 /// Snapshot of a single ping diagnostic run (stored for history comparison).
@@ -47,6 +49,8 @@ class DeviceDetailProvider extends ChangeNotifier {
   MetricModel?      _latestMetric   = null;
   List<MetricModel> _metricsHistory = [];
   List<AlertModel>  _deviceAlerts   = [];
+  List<MetricTypeModel> _metricTypes = [];
+  List<MetricThresholdModel> _thresholds = [];
   final List<DiagnosticSnapshot> _diagnosticHistory = [];
 
   // ── Getters ───────────────────────────────────────────────────────────────
@@ -57,6 +61,7 @@ class DeviceDetailProvider extends ChangeNotifier {
   MetricModel?      get latestMetric   => _latestMetric;
   List<MetricModel> get metricsHistory => _metricsHistory;
   List<AlertModel>  get deviceAlerts   => _deviceAlerts;
+  List<MetricThresholdModel> get thresholds => _thresholds;
   List<DiagnosticSnapshot> get diagnosticHistory =>
       List.unmodifiable(_diagnosticHistory);
 
@@ -94,10 +99,14 @@ class DeviceDetailProvider extends ChangeNotifier {
       final results = await Future.wait([
         ApiClient.getMetrics(deviceId: device.id),
         ApiClient.getAlerts(),
+        ApiClient.getMetricTypes(),
+        ApiClient.getMetricThresholds(deviceId: device.id),
       ]);
 
       final allMetrics = results[0] as List<MetricModel>;
       final allAlerts  = results[1] as List<AlertModel>;
+      _metricTypes     = results[2] as List<MetricTypeModel>;
+      _thresholds      = results[3] as List<MetricThresholdModel>;
 
       // Latest snapshot — most recently recorded metric for this device
       final deviceMetrics = allMetrics
@@ -122,6 +131,57 @@ class DeviceDetailProvider extends ChangeNotifier {
     }
 
     _isLoading = false;
+    notifyListeners();
+  }
+
+  MetricTypeModel? _metricTypeByName(String name) {
+    final key = name.toLowerCase();
+    for (final m in _metricTypes) {
+      if (m.name.toLowerCase() == key) return m;
+    }
+    return null;
+  }
+
+  MetricThresholdModel? thresholdFor(String metricName) {
+    final key = metricName.toLowerCase();
+    for (final t in _thresholds) {
+      if (t.metricName.toLowerCase() == key) return t;
+    }
+    return null;
+  }
+
+  Future<void> saveThreshold({
+    required String metricName,
+    double? warning,
+    double? critical,
+    bool isActive = true,
+  }) async {
+    final metric = _metricTypeByName(metricName);
+    if (metric == null) {
+      _errorMessage = 'Metric type not found for $metricName.';
+      notifyListeners();
+      return;
+    }
+
+    final existing = thresholdFor(metricName);
+    if (existing != null) {
+      await ApiClient.updateMetricThreshold(
+        id: existing.id,
+        warningThreshold: warning,
+        criticalThreshold: critical,
+        isActive: isActive,
+      );
+    } else {
+      await ApiClient.createMetricThreshold(
+        deviceId: device.id,
+        metricId: metric.id,
+        warningThreshold: warning,
+        criticalThreshold: critical,
+        isActive: isActive,
+      );
+    }
+
+    _thresholds = await ApiClient.getMetricThresholds(deviceId: device.id);
     notifyListeners();
   }
 

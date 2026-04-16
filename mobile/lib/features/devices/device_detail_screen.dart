@@ -11,6 +11,7 @@ import '../../core/widgets/shimmer_skeleton.dart';
 import '../../data/models/alert_model.dart';
 import '../../data/models/device_model.dart';
 import '../../data/models/metric_model.dart';
+import '../../data/models/metric_threshold_model.dart';
 import '../auth/auth_provider.dart';
 import 'device_detail_provider.dart';
 import 'device_provider.dart';
@@ -374,6 +375,8 @@ class _DeviceDetailContent extends StatelessWidget {
 
   Widget _buildMetricsSection(BuildContext context, DeviceDetailProvider provider) {
     final metric = provider.latestMetric;
+    final auth = context.read<AuthProvider>();
+    final showThresholds = auth.isTechnician;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -404,6 +407,8 @@ class _DeviceDetailContent extends StatelessWidget {
           _buildNoMetrics(context)
         else
           _buildMetricGrid(metric),
+        if (showThresholds)
+          _buildThresholdSection(context, provider),
       ],
     );
   }
@@ -521,6 +526,186 @@ class _DeviceDetailContent extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          // ── Row 4: MAC Table + Power Load ───────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: _MetricTile(
+                  label: 'MAC Table',
+                  value: metric.macTableEntries != null
+                      ? metric.macTableEntries!.toString()
+                      : 'N/A',
+                  unit: 'MACs',
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MetricTile(
+                  label: 'Power Load',
+                  value: metric.powerLoadPct != null
+                      ? metric.powerLoadPct!.toStringAsFixed(0)
+                      : 'N/A',
+                  unit: '%',
+                  progress: metric.powerLoadPct != null
+                      ? (metric.powerLoadPct! / 100).clamp(0.0, 1.0)
+                      : null,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── Threshold Overrides ──────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildThresholdSection(BuildContext context, DeviceDetailProvider provider) {
+    const items = [
+      _ThresholdItem('latency_ms', 'Latency', 'ms'),
+      _ThresholdItem('cpu_usage_pct', 'CPU Usage', '%'),
+      _ThresholdItem('memory_usage_pct', 'Memory Usage', '%'),
+      _ThresholdItem('mac_table_entries', 'MAC Table', 'MACs'),
+      _ThresholdItem('power_load_pct', 'Power Load', '%'),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 4, height: 18,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('Threshold Overrides', style: AppTextStyles.heading2),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: AppShadows.card,
+            ),
+            child: Column(
+              children: items.map((item) {
+                final threshold = provider.thresholdFor(item.metricName);
+                final warn = threshold?.warningThreshold;
+                final crit = threshold?.criticalThreshold;
+                final enabled = threshold?.isActive ?? false;
+                final subtitle = enabled
+                  ? 'Warn ${_fmtValue(warn)}${item.unit} / Crit ${_fmtValue(crit)}${item.unit}'
+                  : 'Not set';
+                return _ThresholdTile(
+                  title: item.label,
+                  subtitle: subtitle,
+                  isLast: item == items.last,
+                  onTap: () => _showThresholdDialog(
+                    context: context,
+                    provider: provider,
+                    item: item,
+                    existing: threshold,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmtValue(double? value) => value == null ? 'N/A' : value.toStringAsFixed(0);
+
+  void _showThresholdDialog({
+    required BuildContext context,
+    required DeviceDetailProvider provider,
+    required _ThresholdItem item,
+    required MetricThresholdModel? existing,
+  }) {
+    final warnCtrl = TextEditingController(
+      text: existing?.warningThreshold?.toStringAsFixed(0) ?? '',
+    );
+    final critCtrl = TextEditingController(
+      text: existing?.criticalThreshold?.toStringAsFixed(0) ?? '',
+    );
+    bool enabled = existing?.isActive ?? true;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${item.label} Thresholds'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: warnCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Warning (${item.unit})',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: critCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Critical (${item.unit})',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Text('Enabled'),
+                const Spacer(),
+                StatefulBuilder(
+                  builder: (ctx, setState) => Switch(
+                    value: enabled,
+                    onChanged: (v) => setState(() => enabled = v),
+                    activeColor: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final warn = double.tryParse(warnCtrl.text.trim());
+              final crit = double.tryParse(critCtrl.text.trim());
+              await provider.saveThreshold(
+                metricName: item.metricName,
+                warning: warn,
+                critical: crit,
+                isActive: enabled,
+              );
+              if (context.mounted) {
+                Navigator.pop(dialogContext);
+                AppUtils.showSnackbar(context, 'Threshold updated');
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.primary,
+            ),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -1243,6 +1428,62 @@ class _MetricTile extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ThresholdItem {
+  final String metricName;
+  final String label;
+  final String unit;
+  const _ThresholdItem(this.metricName, this.label, this.unit);
+}
+
+class _ThresholdTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool isLast;
+  final VoidCallback onTap;
+
+  const _ThresholdTile({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: onTap,
+          borderRadius: isLast
+              ? const BorderRadius.vertical(bottom: Radius.circular(14))
+              : BorderRadius.zero,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: AppTextStyles.labelBold),
+                      const SizedBox(height: 2),
+                      Text(subtitle, style: AppTextStyles.caption),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.textSecondary),
+              ],
+            ),
+          ),
+        ),
+        if (!isLast)
+          const Divider(height: 1, indent: 16, endIndent: 0),
+      ],
     );
   }
 }

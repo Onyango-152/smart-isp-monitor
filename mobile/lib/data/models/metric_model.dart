@@ -10,6 +10,8 @@ class MetricModel {
   final double? memoryUsagePct;
   final int?    interfaceErrors;
   final int?    uptimeSeconds;
+  final int?    macTableEntries;
+  final double? powerLoadPct;
   final String  pollMethod;
   final String  recordedAt;
 
@@ -24,6 +26,8 @@ class MetricModel {
     this.memoryUsagePct,
     this.interfaceErrors,
     this.uptimeSeconds,
+    this.macTableEntries,
+    this.powerLoadPct,
     required this.pollMethod,
     required this.recordedAt,
   });
@@ -40,6 +44,8 @@ class MetricModel {
       memoryUsagePct:   (json['memory_usage_pct']  as num?)?.toDouble(),
       interfaceErrors:  json['interface_errors']   as int?,
       uptimeSeconds:    json['uptime_seconds']     as int?,
+      macTableEntries:  (json['mac_table_entries'] as num?)?.toInt(),
+      powerLoadPct:     (json['power_load_pct']    as num?)?.toDouble(),
       pollMethod:       json['poll_method']        as String,
       recordedAt:       json['recorded_at']        as String,
     );
@@ -57,6 +63,8 @@ class MetricModel {
       'memory_usage_pct':  memoryUsagePct,
       'interface_errors':  interfaceErrors,
       'uptime_seconds':    uptimeSeconds,
+      'mac_table_entries': macTableEntries,
+      'power_load_pct':    powerLoadPct,
       'poll_method':       pollMethod,
       'recorded_at':       recordedAt,
     };

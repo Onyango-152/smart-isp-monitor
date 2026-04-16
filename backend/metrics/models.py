@@ -74,3 +74,41 @@ class MetricThreshold(models.Model):
     
     def __str__(self):
         return f"{self.device.name} - {self.metric.name}"
+
+
+class MetricPrediction(models.Model):
+    """
+    Stores short-horizon predictions for a metric on a device.
+
+    Fields:
+    - device: Device the prediction applies to
+    - metric: Metric being predicted
+    - predicted_value: Forecasted value at the horizon
+    - slope_per_min: Trend slope per minute
+    - risk_level: low | medium | high | critical
+    - horizon_minutes: Forecast horizon in minutes
+    - generated_at: When the prediction was computed
+    """
+    RISK_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ]
+
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='metric_predictions')
+    metric = models.ForeignKey(Metric, on_delete=models.CASCADE)
+    predicted_value = models.FloatField()
+    slope_per_min = models.FloatField()
+    risk_level = models.CharField(max_length=20, choices=RISK_CHOICES)
+    horizon_minutes = models.PositiveIntegerField(default=60)
+    generated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('device', 'metric')
+        ordering = ['-generated_at']
+        verbose_name = 'Metric Prediction'
+        verbose_name_plural = 'Metric Predictions'
+
+    def __str__(self):
+        return f"{self.device.name} - {self.metric.name}: {self.risk_level}"

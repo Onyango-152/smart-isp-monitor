@@ -1,6 +1,7 @@
 import '../core/constants.dart';
 import 'models/device_model.dart';
 import 'models/metric_model.dart';
+import 'models/metric_prediction_model.dart';
 import 'models/alert_model.dart';
 import 'models/report_model.dart';
 import 'models/user_model.dart';
@@ -312,6 +313,7 @@ class DummyData {
       bandwidthInBps: 45000000, bandwidthOutBps: 38000000,
       cpuUsagePct: 34.0, memoryUsagePct: 52.0,
       interfaceErrors: 0, uptimeSeconds: 864000,
+      macTableEntries: 4200, powerLoadPct: 48.0,
       pollMethod: 'snmp', recordedAt: _ago(minutes: 5),
     ),
     MetricModel(
@@ -320,6 +322,7 @@ class DummyData {
       bandwidthInBps: 12000000, bandwidthOutBps: 9500000,
       cpuUsagePct: 18.0, memoryUsagePct: 31.0,
       interfaceErrors: 2, uptimeSeconds: 432000,
+      macTableEntries: 2100, powerLoadPct: 34.0,
       pollMethod: 'snmp', recordedAt: _ago(minutes: 5),
     ),
     MetricModel(
@@ -328,6 +331,7 @@ class DummyData {
       bandwidthInBps: 5000000, bandwidthOutBps: 4200000,
       cpuUsagePct: 78.0, memoryUsagePct: 85.0,
       interfaceErrors: 24, uptimeSeconds: 259200,
+      macTableEntries: 11800, powerLoadPct: 86.0,
       pollMethod: 'snmp', recordedAt: _ago(minutes: 10),
     ),
     MetricModel(
@@ -336,6 +340,7 @@ class DummyData {
       bandwidthInBps: null, bandwidthOutBps: null,
       cpuUsagePct: null, memoryUsagePct: null,
       interfaceErrors: null, uptimeSeconds: null,
+      macTableEntries: null, powerLoadPct: null,
       pollMethod: 'icmp', recordedAt: _ago(hours: 1, minutes: 25),
     ),
     MetricModel(
@@ -344,6 +349,7 @@ class DummyData {
       bandwidthInBps: 8000000, bandwidthOutBps: 6500000,
       cpuUsagePct: 22.0, memoryUsagePct: 44.0,
       interfaceErrors: 0, uptimeSeconds: 600000,
+      macTableEntries: 3900, powerLoadPct: 40.0,
       pollMethod: 'snmp', recordedAt: _ago(minutes: 5),
     ),
     MetricModel(
@@ -352,6 +358,7 @@ class DummyData {
       bandwidthInBps: 14000000, bandwidthOutBps: 11000000,
       cpuUsagePct: 21.0, memoryUsagePct: 28.0,
       interfaceErrors: 0, uptimeSeconds: 518400,
+      macTableEntries: 3000, powerLoadPct: 36.0,
       pollMethod: 'snmp', recordedAt: _ago(minutes: 7),
     ),
     MetricModel(
@@ -360,6 +367,7 @@ class DummyData {
       bandwidthInBps: 22000000, bandwidthOutBps: 19000000,
       cpuUsagePct: 41.0, memoryUsagePct: 60.0,
       interfaceErrors: 1, uptimeSeconds: 720000,
+      macTableEntries: 5200, powerLoadPct: 55.0,
       pollMethod: 'snmp', recordedAt: _ago(minutes: 5),
     ),
     MetricModel(
@@ -368,7 +376,52 @@ class DummyData {
       bandwidthInBps: 3000000, bandwidthOutBps: 2400000,
       cpuUsagePct: 67.0, memoryUsagePct: 72.0,
       interfaceErrors: 9, uptimeSeconds: 172800,
+      macTableEntries: 9100, powerLoadPct: 79.0,
       pollMethod: 'snmp', recordedAt: _ago(minutes: 15),
+    ),
+  ];
+
+  // ── Metric predictions (short-horizon risk) ─────────────────────────────
+
+  static final List<MetricPredictionModel> metricPredictions = [
+    MetricPredictionModel(
+      id: 1,
+      deviceId: 3,
+      deviceName: 'OLT-01',
+      metricId: 1,
+      metricName: 'latency_ms',
+      metricUnit: 'ms',
+      predictedValue: 320.0,
+      slopePerMin: 1.8,
+      riskLevel: 'critical',
+      horizonMinutes: 60,
+      generatedAt: _ago(minutes: 5),
+    ),
+    MetricPredictionModel(
+      id: 2,
+      deviceId: 3,
+      deviceName: 'OLT-01',
+      metricId: 2,
+      metricName: 'memory_usage_pct',
+      metricUnit: '%',
+      predictedValue: 92.0,
+      slopePerMin: 0.4,
+      riskLevel: 'high',
+      horizonMinutes: 60,
+      generatedAt: _ago(minutes: 5),
+    ),
+    MetricPredictionModel(
+      id: 3,
+      deviceId: 8,
+      deviceName: 'AP-Block C',
+      metricId: 3,
+      metricName: 'mac_table_entries',
+      metricUnit: 'count',
+      predictedValue: 9800.0,
+      slopePerMin: 2.1,
+      riskLevel: 'high',
+      horizonMinutes: 60,
+      generatedAt: _ago(minutes: 8),
     ),
   ];
 

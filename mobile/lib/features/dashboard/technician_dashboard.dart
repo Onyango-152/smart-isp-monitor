@@ -271,6 +271,12 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
           SliverToBoxAdapter(
               child: _buildCriticalBanner(dashboard.criticalAlerts)),
 
+        // Risk banner
+        if (dashboard.highRiskPredictions.isNotEmpty)
+          SliverToBoxAdapter(
+            child: _buildRiskBanner(dashboard),
+          ),
+
         // KPI row
         SliverToBoxAdapter(child: _buildSummaryRow(dashboard)),
 
@@ -703,6 +709,103 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
         ),
       ),
     );
+  }
+
+  // ── Predictive Risk Banner ───────────────────────────────────────────────
+
+  Widget _buildRiskBanner(DashboardProvider dashboard) {
+    final items = dashboard.highRiskPredictions.take(3).toList();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.analytics_rounded, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Risk Forecast',
+                style: AppTextStyles.heading3.copyWith(fontSize: 14),
+              ),
+              const Spacer(),
+              Text(
+                '${dashboard.highRiskPredictions.length} at risk',
+                style: AppTextStyles.caption.copyWith(color: AppColors.primary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...items.map((p) {
+            final color = _riskColor(p.riskLevel);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${p.deviceName} · ${_metricLabel(p.metricName)}',
+                      style: AppTextStyles.bodySmall,
+                    ),
+                  ),
+                  Text(
+                    '${p.predictedValue.toStringAsFixed(0)}${p.metricUnit}',
+                    style: AppTextStyles.caption.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+          if (dashboard.highRiskPredictions.length > items.length)
+            Text(
+              'View device details for full forecast list.',
+              style: AppTextStyles.caption,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Color _riskColor(String risk) {
+    switch (risk) {
+      case 'critical':
+        return AppColors.offline;
+      case 'high':
+        return AppColors.primaryDark;
+      case 'medium':
+        return AppColors.primary;
+      default:
+        return AppColors.textSecondaryOf(context);
+    }
+  }
+
+  String _metricLabel(String name) {
+    switch (name) {
+      case 'latency_ms': return 'Latency';
+      case 'cpu_usage_pct': return 'CPU';
+      case 'memory_usage_pct': return 'Memory';
+      case 'mac_table_entries': return 'MAC Table';
+      case 'power_load_pct': return 'Power Load';
+      default: return name.replaceAll('_', ' ');
+    }
   }
 
   // ── Weekly faults bar chart ───────────────────────────────────────────────

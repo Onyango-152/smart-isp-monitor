@@ -8,6 +8,9 @@ import '../core/constants.dart';
 import '../data/models/alert_model.dart';
 import '../data/models/device_model.dart';
 import '../data/models/metric_model.dart';
+import '../data/models/metric_type_model.dart';
+import '../data/models/metric_threshold_model.dart';
+import '../data/models/metric_prediction_model.dart';
 import '../data/models/task_model.dart';
 import '../data/models/user_model.dart';
 
@@ -284,6 +287,17 @@ class ApiClient {
 
   // ── Metrics ──────────────────────────────────────────────────────────────
 
+  static Future<List<MetricTypeModel>> getMetricTypes() async {
+    try {
+      final res = await _dio.get('${AppConstants.metricsEndpoint}types/');
+      return _asList(res.data)
+          .map((j) => MetricTypeModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
   static Future<List<MetricModel>> getMetrics({int? deviceId}) async {
     try {
       final res = await _dio.get(
@@ -293,6 +307,79 @@ class ApiClient {
       return _asList(res.data)
           .map((j) => MetricModel.fromJson(j as Map<String, dynamic>))
           .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<List<MetricThresholdModel>> getMetricThresholds({int? deviceId}) async {
+    try {
+      final res = await _dio.get(
+        '${AppConstants.metricsEndpoint}thresholds/',
+        queryParameters: deviceId != null ? {'device': deviceId} : null,
+      );
+      return _asList(res.data)
+          .map((j) => MetricThresholdModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<List<MetricPredictionModel>> getMetricPredictions({int? deviceId}) async {
+    try {
+      final res = await _dio.get(
+        '${AppConstants.metricsEndpoint}predictions/',
+        queryParameters: deviceId != null ? {'device': deviceId} : null,
+      );
+      return _asList(res.data)
+          .map((j) => MetricPredictionModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<MetricThresholdModel> createMetricThreshold({
+    required int deviceId,
+    required int metricId,
+    double? warningThreshold,
+    double? criticalThreshold,
+    bool isActive = true,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '${AppConstants.metricsEndpoint}thresholds/',
+        data: {
+          'device': deviceId,
+          'metric': metricId,
+          'warning_threshold': warningThreshold,
+          'critical_threshold': criticalThreshold,
+          'is_active': isActive,
+        },
+      );
+      return MetricThresholdModel.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<MetricThresholdModel> updateMetricThreshold({
+    required int id,
+    double? warningThreshold,
+    double? criticalThreshold,
+    bool? isActive,
+  }) async {
+    try {
+      final res = await _dio.patch(
+        '${AppConstants.metricsEndpoint}thresholds/$id/',
+        data: {
+          if (warningThreshold != null) 'warning_threshold': warningThreshold,
+          if (criticalThreshold != null) 'critical_threshold': criticalThreshold,
+          if (isActive != null) 'is_active': isActive,
+        },
+      );
+      return MetricThresholdModel.fromJson(res.data as Map<String, dynamic>);
     } on DioException catch (e) {
       _handleDioError(e);
     }
