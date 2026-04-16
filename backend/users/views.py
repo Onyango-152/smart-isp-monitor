@@ -11,12 +11,18 @@ from .serializers import (
     RegisterSerializer, LoginSerializer, UserProfileSerializer,
     ChangePasswordSerializer, UserListSerializer,
     VerifyEmailSerializer, ResendOtpSerializer,
+    ForgotPasswordSerializer, VerifyPasswordResetOtpSerializer, ResetPasswordSerializer,
 )
 from .services import (
     issue_email_otp,
     send_verification_email,
     verify_email_otp,
     can_resend_otp,
+    issue_password_reset_otp,
+    send_password_reset_email,
+    verify_password_reset_otp,
+    reset_password,
+    can_resend_password_reset_otp,
 )
 
 User = get_user_model()
@@ -323,5 +329,81 @@ class ResendOtpView(APIView):
         send_verification_email(user, otp)
         return Response(
             {'message': 'Verification code resent.'},
+            status=status.HTTP_200_OK,
+        )
+
+
+class ForgotPasswordView(APIView):
+    """
+    POST /api/users/forgot-password/
+    Sends a password reset OTP to the user's email.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data['email']
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            # Don't reveal if account exists for security
+            return Response(
+                {'message': 'If an account with this email exists, a reset code will be sent.'},
+                status=status.HTTP_200_OK,
+            )
+
+        if not can_resend_password_reset_otp(user):
+            return Response(
+                {'error': 'Too many requests. Please try again later.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        try:
+            otp = issue_password_reset_otp(user)
+            send_password_reset_email(user, otp)
+            return Response(
+                {'message': 'Password reset code sent to your email.'},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            return Response(
+                {'error': 'Failed to send reset code. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class ResetPasswordView(APIView):
+    """
+    POST /api/users/reset-password/
+    Verifies the reset OTP and updates the user's password.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data['email']
+        otp = serializer.validated_data['otp']
+        new_password = serializer.validated_data['new_password']
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Account not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        ok, message = reset_password(user, otp, new_password)
+        if not ok:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            {'message': 'Password reset successfully. Please log in with your new password.'},
             status=status.HTTP_200_OK,
         )

@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/utils.dart';
-import '../../core/widgets/info_row.dart';
-import '../../core/widgets/section_header.dart';
+import '../../core/Widgets/info_row.dart';
+import '../../core/Widgets/section_header.dart';
 import '../../data/models/alert_model.dart';
 import '../../data/models/device_model.dart';
 import '../alerts/alerts_provider.dart';
@@ -24,23 +24,22 @@ class AlertDetailScreen extends StatelessWidget {
       );
     }
 
-    // Find the device this alert belongs to (if DeviceProvider is available)
-    DeviceProvider? deviceProvider;
+    // Find the device via DeviceProvider only when it's available in the tree
+    // (inside TechnicianShell / ManagerShell). Falls back to null gracefully
+    // when the screen is opened from a standalone route (e.g. push notification).
+    DeviceModel? device;
     try {
-      deviceProvider = Provider.of<DeviceProvider>(
-        context,
-        listen: false,
-      );
+      device = context
+          .read<DeviceProvider>()
+          .devices
+          .cast<DeviceModel?>()
+          .firstWhere(
+            (d) => d?.id == alert.deviceId,
+            orElse: () => null,
+          );
     } catch (_) {
-      deviceProvider = null;
+      device = null;
     }
-    final device = deviceProvider
-        ?.devices
-        .cast<DeviceModel?>()
-        .firstWhere(
-          (d) => d?.id == alert.deviceId,
-          orElse: () => null,
-        );
 
     final severityColor = AppUtils.severityColor(alert.severity);
 

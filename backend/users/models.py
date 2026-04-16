@@ -37,6 +37,11 @@ class CustomUser(AbstractUser):
     email_otp_sent_at = models.DateTimeField(null=True, blank=True)
     email_otp_send_count = models.IntegerField(default=0)
     email_otp_attempts = models.IntegerField(default=0)
+    password_reset_otp_hash = models.CharField(max_length=128, blank=True, null=True)
+    password_reset_otp_expires_at = models.DateTimeField(null=True, blank=True)
+    password_reset_otp_sent_at = models.DateTimeField(null=True, blank=True)
+    password_reset_otp_send_count = models.IntegerField(default=0)
+    password_reset_otp_attempts = models.IntegerField(default=0)
     created_at   = models.DateTimeField(auto_now_add=True)
     updated_at   = models.DateTimeField(auto_now=True)
 

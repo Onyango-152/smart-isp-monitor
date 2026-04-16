@@ -6,9 +6,12 @@ import 'core/theme_provider.dart';
 import 'services/connectivity_provider.dart';
 import 'features/alerts/alert_detail_screen.dart';
 import 'features/alerts/alerts_provider.dart';
+import 'features/alerts/alerts_provider.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/auth/email_verify_screen.dart';
 import 'features/auth/forgot_password_screen.dart';
+import 'features/auth/reset_password_screen.dart';
+import 'features/auth/reset_password_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/register_screen.dart';
 import 'features/customer/customer_shell.dart';
@@ -79,6 +82,12 @@ class SmartISPApp extends StatelessWidget {
         return _slideRoute(settings, const EmailVerifyScreen());
       case AppConstants.forgotPasswordRoute:
         return _slideRoute(settings, const ForgotPasswordScreen());
+      case AppConstants.resetPasswordRoute:
+        final email = settings.arguments as String? ?? '';
+        return _slideRoute(settings, ResetPasswordScreen(email: email));
+      case AppConstants.resetPasswordRoute:
+        final email = settings.arguments as String? ?? '';
+        return _slideRoute(settings, ResetPasswordScreen(email: email));
 
       // Role shells — fade in, no directional entry
       case AppConstants.technicianHomeRoute:
@@ -100,8 +109,10 @@ class SmartISPApp extends StatelessWidget {
       case AppConstants.alertDetailRoute:
         return _slideRoute(
           settings,
-          ChangeNotifierProvider(
-            create: (_) => AlertsProvider()..loadAlerts(),
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider(create: (_) => AlertsProvider()..loadAlerts()),
+            ],
             child: const AlertDetailScreen(),
           ),
         );

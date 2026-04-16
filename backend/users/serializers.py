@@ -135,3 +135,27 @@ class VerifyEmailSerializer(serializers.Serializer):
 
 class ResendOtpSerializer(serializers.Serializer):
     email = serializers.EmailField()
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    """Request password reset by email."""
+    email = serializers.EmailField()
+
+
+class VerifyPasswordResetOtpSerializer(serializers.Serializer):
+    """Verify password reset OTP."""
+    email = serializers.EmailField()
+    otp   = serializers.CharField(min_length=6, max_length=6)
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    """Reset password with OTP and new password."""
+    email           = serializers.EmailField()
+    otp             = serializers.CharField(min_length=6, max_length=6)
+    new_password    = serializers.CharField(min_length=8, write_only=True)
+    confirm_password = serializers.CharField(min_length=8, write_only=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError('Passwords do not match.')
+        return data
