@@ -11,6 +11,7 @@ import '../../core/widgets/shimmer_skeleton.dart';
 import '../../data/models/alert_model.dart';
 import '../../data/models/device_model.dart';
 import '../../data/models/metric_model.dart';
+import '../auth/auth_provider.dart';
 import 'device_detail_provider.dart';
 import 'device_provider.dart';
 
@@ -127,6 +128,8 @@ class _DeviceDetailContent extends StatelessWidget {
   SliverAppBar _buildSliverAppBar(
       BuildContext context, DeviceModel device, DeviceDetailProvider? provider) {
     final statusColor = AppColors.primary;
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final canManageDevice = auth.isAdmin;
     return SliverAppBar(
       expandedHeight: 190,
       pinned: true,
@@ -143,38 +146,39 @@ class _DeviceDetailContent extends StatelessWidget {
             child: const Text('Refresh',
                 style: TextStyle(color: AppColors.textOnDark)),
           ),
-        PopupMenuButton<String>(
-          child: const Text('More',
-              style: TextStyle(color: AppColors.textOnDark)),
-          onSelected: (value) {
-            switch (value) {
-              case 'edit':
-                Navigator.of(context).pushNamed(
-                  AppConstants.deviceFormRoute,
-                  arguments: device,
-                ).then((updated) {
-                  if (updated == true) {
-                    AppUtils.showSnackbar(context, 'Device updated');
-                    provider?.refresh();
-                  }
-                });
-              case 'delete':
-                _showDeleteDialog(context, device);
-            }
-          },
-          itemBuilder: (_) => [
-            const PopupMenuItem(
-              value: 'edit',
-              child: Text('Edit Device',
-                  style: TextStyle(color: AppColors.primary)),
-            ),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Text('Delete Device',
-                  style: TextStyle(color: AppColors.primary)),
-            ),
-          ],
-        ),
+        if (canManageDevice)
+          PopupMenuButton<String>(
+            child: const Text('More',
+                style: TextStyle(color: AppColors.textOnDark)),
+            onSelected: (value) {
+              switch (value) {
+                case 'edit':
+                  Navigator.of(context).pushNamed(
+                    AppConstants.deviceFormRoute,
+                    arguments: device,
+                  ).then((updated) {
+                    if (updated == true) {
+                      AppUtils.showSnackbar(context, 'Device updated');
+                      provider?.refresh();
+                    }
+                  });
+                case 'delete':
+                  _showDeleteDialog(context, device);
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Text('Edit Device',
+                    style: TextStyle(color: AppColors.primary)),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Text('Delete Device',
+                    style: TextStyle(color: AppColors.primary)),
+              ),
+            ],
+          ),
         const SizedBox(width: 4),
       ],
       flexibleSpace: FlexibleSpaceBar(

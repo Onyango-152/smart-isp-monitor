@@ -4,6 +4,7 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/utils.dart';
 import '../../data/models/device_model.dart';
+import '../auth/auth_provider.dart';
 import 'device_provider.dart';
 
 /// DeviceFormScreen handles both Add and Edit modes.
@@ -38,6 +39,7 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
   bool   _isActive     = true;
   bool   _isSaving     = false;
   String? _saveError;
+  bool   _readyToSave  = false;
 
   DeviceModel? _existingDevice;
   bool get _isEditing => _existingDevice != null;
@@ -52,6 +54,12 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
     _locationCtrl      = TextEditingController();
     _descriptionCtrl   = TextEditingController();
     _snmpCommunityCtrl = TextEditingController(text: 'public');
+
+    _nameCtrl.addListener(_updateReadyToSave);
+    _ipCtrl.addListener(_updateReadyToSave);
+    _snmpCommunityCtrl.addListener(_updateReadyToSave);
+
+    _updateReadyToSave();
 
   }
 
@@ -72,12 +80,16 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
         _deviceType  = args.deviceType;
         _snmpEnabled = args.snmpEnabled;
         _isActive    = args.isActive;
+        _updateReadyToSave();
       }
     }
   }
 
   @override
   void dispose() {
+    _nameCtrl.removeListener(_updateReadyToSave);
+    _ipCtrl.removeListener(_updateReadyToSave);
+    _snmpCommunityCtrl.removeListener(_updateReadyToSave);
     _nameCtrl.dispose();
     _ipCtrl.dispose();
     _macCtrl.dispose();
@@ -88,6 +100,16 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
   }
 
   // ── Save ──────────────────────────────────────────────────────────────────
+
+  void _updateReadyToSave() {
+    final hasName = _nameCtrl.text.trim().isNotEmpty;
+    final hasIp = _ipCtrl.text.trim().isNotEmpty;
+    final hasSnmp = !_snmpEnabled || _snmpCommunityCtrl.text.trim().isNotEmpty;
+    final ready = hasName && hasIp && hasSnmp;
+    if (ready != _readyToSave) {
+      setState(() => _readyToSave = ready);
+    }
+  }
 
   Future<void> _handleSave() async {
     FocusScope.of(context).unfocus();
@@ -152,6 +174,23 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (!auth.isAdmin) {
+      return Scaffold(
+        backgroundColor: AppColors.bg(context),
+        appBar: _buildAppBar(),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Only admins can add or edit devices.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        ),
+      );
+    }
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
@@ -256,7 +295,10 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
             DropdownMenuItem(value: AppConstants.deviceAccessPoint,
                 child: Text('Access Point')),
           ],
-          onChanged: (v) => setState(() => _deviceType = v!),
+          onChanged: (v) {
+            setState(() => _deviceType = v!);
+            _updateReadyToSave();
+          },
         ),
         const SizedBox(height: 14),
 
@@ -342,7 +384,10 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
           value:    _snmpEnabled,
           icon:     Icons.swap_horiz_rounded,
           color:    _snmpEnabled ? AppColors.primary : AppColors.textHint,
-          onChanged: (v) => setState(() => _snmpEnabled = v),
+          onChanged: (v) {
+            setState(() => _snmpEnabled = v);
+            _updateReadyToSave();
+          },
         ),
         if (_snmpEnabled) ...[
           const SizedBox(height: 14),
@@ -440,7 +485,9 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    _isEditing ? 'Save Changes' : 'Add Device',
+                    _isEditing
+                      ? 'Save Changes'
+                      : (_readyToSave ? 'Save Device' : 'Add Device'),
                     style: const TextStyle(
                       color: AppColors.textOnDark, fontSize: 16,
                       fontWeight: FontWeight.w700),

@@ -46,7 +46,11 @@ class DeviceListView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         """Auto-assign device to current user if not specified"""
-        if not serializer.validated_data.get('assigned_to'):
+        if serializer.validated_data.get('assigned_to'):
+            serializer.save()
+            return
+
+        if self.request.user.is_authenticated:
             serializer.save(assigned_to=self.request.user)
         else:
             serializer.save()

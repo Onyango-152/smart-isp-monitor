@@ -446,22 +446,28 @@ class AlertDetailScreen extends StatelessWidget {
                     );
                   }
 
+                  final canTroubleshoot = device != null;
                   return Column(
                     children: [
                       // Troubleshoot button — most prominent
                       ElevatedButton.icon(
-                        onPressed: () => Navigator.of(context).pushNamed(
-                          AppConstants.troubleshootRoute,
-                          arguments: {
-                            'device':    device,
-                            'alertType': alert.alertType,
-                            'checkName': alert.alertType,
-                            'value':     alert.details?['latency_ms'] ??
-                                alert.details?['packet_loss_pct'] ??
-                                alert.details?['cpu_usage_pct'],
-                            'threshold': alert.details?['threshold'],
-                          },
-                        ),
+                        onPressed: canTroubleshoot
+                            ? () => Navigator.of(context).pushNamed(
+                                  AppConstants.troubleshootRoute,
+                                  arguments: {
+                                    'device':    device,
+                                    'alertType': alert.alertType,
+                                    'checkName': alert.alertType,
+                                    'value':     alert.details?['latency_ms'] ??
+                                        alert.details?['packet_loss_pct'] ??
+                                        alert.details?['cpu_usage_pct'],
+                                    'threshold': alert.details?['threshold'],
+                                  },
+                                )
+                            : () => AppUtils.showSnackbar(
+                                  context,
+                                  'Device details are unavailable for this alert.',
+                                ),
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 52),
                         ),

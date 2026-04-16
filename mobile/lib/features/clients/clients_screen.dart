@@ -241,7 +241,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
           Text(label, style: AppTextStyles.bodySmall),
           if (provider.hasActiveFilters) ...[
             const Spacer(),
-            TextButton(
+            TextButton.icon(
+              icon: const Icon(Icons.filter_alt_off_rounded, size: 16),
               onPressed: () {
                 _searchController.clear();
                 AppUtils.hapticSelect();
@@ -252,7 +253,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 4),
               ),
-              child: Text('Clear Filters',
+              label: Text('Clear Filters',
                   style: AppTextStyles.label.copyWith(
                     color: AppColors.primary,
                   )),
@@ -276,7 +277,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
         message: isSearchEmpty
             ? 'No clients match "${provider.searchQuery}". Try different keywords.'
             : 'No clients match the selected filters.',
-        color:       AppColors.degraded,
+        color:       AppColors.primary,
         actionLabel: isSearchEmpty ? 'Clear Search' : 'Clear Filters',
         onAction: () {
           _searchController.clear();

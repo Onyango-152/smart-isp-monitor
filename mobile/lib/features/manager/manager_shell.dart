@@ -5,6 +5,7 @@ import '../../core/widgets/nav_drawer.dart';
 import '../alerts/alerts_provider.dart';
 import '../clients/clients_provider.dart';
 import '../clients/clients_screen.dart';
+import '../devices/device_provider.dart';
 import '../tasks/tasks_provider.dart';
 import '../tasks/tasks_screen.dart';
 import 'device_management_screen.dart';
@@ -62,6 +63,7 @@ class _ManagerShellState extends State<ManagerShell> {
       providers: [
         ChangeNotifierProvider(create: (_) => ManagerDashboardProvider()),
         ChangeNotifierProvider(create: (_) => DeviceManagementProvider()),
+        ChangeNotifierProvider(create: (_) => DeviceProvider()),
         ChangeNotifierProvider(create: (_) => ClientsProvider()),
         ChangeNotifierProvider(create: (_) => ReportsProvider()),
         ChangeNotifierProvider(create: (_) => AlertsProvider()..loadAlerts()),

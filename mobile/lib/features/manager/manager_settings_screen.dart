@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
-import '../../core/theme_provider.dart';
 import '../../core/utils.dart';
+import '../../core/constants.dart';
 import '../../data/models/alert_model.dart';
 import '../../data/models/task_model.dart';
 import '../../services/api_client.dart';
@@ -21,7 +21,6 @@ class ManagerSettingsProvider extends ChangeNotifier {
   bool _alertsAllSeverity = false;
   bool _dailySummary      = true;
   bool _weeklyReport      = true;
-  bool _systemEvents      = true;
 
   // SLA targets
   double _slaUptimeTarget = 99.0;   // percentage
@@ -29,21 +28,14 @@ class ManagerSettingsProvider extends ChangeNotifier {
   int    _mttrTargetHours = 4;      // hours
   int    _autoEscalateH   = 24;     // hours before auto-escalate
 
-  // Display
-  int _refreshInterval = 30; // seconds
-  bool _compactList    = false;
-
   bool   get alertsCritical    => _alertsCritical;
   bool   get alertsAllSeverity => _alertsAllSeverity;
   bool   get dailySummary      => _dailySummary;
   bool   get weeklyReport      => _weeklyReport;
-  bool   get systemEvents      => _systemEvents;
   double get slaUptimeTarget   => _slaUptimeTarget;
   int    get slaRespMinutes    => _slaRespMinutes;
   int    get mttrTargetHours   => _mttrTargetHours;
   int    get autoEscalateH     => _autoEscalateH;
-  int    get refreshInterval   => _refreshInterval;
-  bool   get compactList       => _compactList;
 
   void toggle(String key) {
     switch (key) {
@@ -51,8 +43,6 @@ class ManagerSettingsProvider extends ChangeNotifier {
       case 'alertsAllSeverity': _alertsAllSeverity = !_alertsAllSeverity; break;
       case 'dailySummary':      _dailySummary      = !_dailySummary;      break;
       case 'weeklyReport':      _weeklyReport      = !_weeklyReport;      break;
-      case 'systemEvents':      _systemEvents      = !_systemEvents;      break;
-      case 'compactList':       _compactList       = !_compactList;       break;
     }
     notifyListeners();
   }
@@ -61,7 +51,6 @@ class ManagerSettingsProvider extends ChangeNotifier {
   void setSlaRespMinutes(int v)      { _slaRespMinutes  = v; notifyListeners(); }
   void setMttrTarget(int v)         { _mttrTargetHours = v; notifyListeners(); }
   void setAutoEscalate(int v)       { _autoEscalateH   = v; notifyListeners(); }
-  void setRefreshInterval(int v)    { _refreshInterval  = v; notifyListeners(); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -91,7 +80,6 @@ class _ManagerSettingsContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth     = context.read<AuthProvider>();
     final settings = context.watch<ManagerSettingsProvider>();
-    final theme    = context.watch<ThemeProvider>();
     final user     = auth.currentUser;
 
     return Scaffold(
@@ -107,13 +95,17 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
           ),
         ),
-        title: const Text('Manager Settings',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        title: const Text(
+          'Manager Settings',
+          style: TextStyle(
+            color: AppColors.textOnDark,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 48),
         children: [
-
           // ── Profile ────────────────────────────────────────────────────
           _buildProfileCard(context, user),
 
@@ -140,16 +132,6 @@ class _ManagerSettingsContent extends StatelessWidget {
                   color: AppColors.textSecondary),
               onTap: () => _generateReport(context),
             ),
-            _Tile(
-              icon: Icons.api_rounded,
-              iconColor: AppColors.primaryLight,
-              title: 'API & Integration Settings',
-              subtitle: 'SNMP community, polling intervals, endpoints',
-              isLast: true,
-              trailing: const Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary),
-              onTap: () => _showApiSettings(context),
-            ),
           ]),
 
           const SizedBox(height: 4),
@@ -159,7 +141,7 @@ class _ManagerSettingsContent extends StatelessWidget {
           _buildCard([
             _Tile(
               icon: Icons.engineering_rounded,
-              iconColor: AppColors.online,
+              iconColor: AppColors.primary,
               title: 'Technician Performance',
               subtitle: 'Task completion, response times, open issues',
               trailing: const Icon(Icons.chevron_right_rounded,
@@ -168,7 +150,7 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.assignment_late_rounded,
-              iconColor: AppColors.severityHigh,
+              iconColor: AppColors.primaryDark,
               title: 'Unassigned Tasks',
               subtitle: 'Tasks not yet assigned to a technician',
               trailing: _UnassignedTasksBadge(),
@@ -176,7 +158,7 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.alarm_rounded,
-              iconColor: AppColors.degraded,
+              iconColor: AppColors.primaryLight,
               title: 'Auto-Escalate After',
               subtitle: 'Escalate unresolved issues after ${settings.autoEscalateH}h',
               isLast: true,
@@ -200,7 +182,7 @@ class _ManagerSettingsContent extends StatelessWidget {
           _buildCard([
             _Tile(
               icon: Icons.support_agent_rounded,
-              iconColor: AppColors.severityCritical,
+              iconColor: AppColors.primaryDark,
               title: 'Open Customer Alerts',
               subtitle: 'Active alerts affecting customer devices',
               trailing: _OpenAlertsBadge(),
@@ -208,7 +190,7 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.verified_rounded,
-              iconColor: AppColors.online,
+              iconColor: AppColors.primary,
               title: 'SLA Compliance',
               subtitle: 'Uptime & response time against SLA targets',
               trailing: const Icon(Icons.chevron_right_rounded,
@@ -251,7 +233,7 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.timer_rounded,
-              iconColor: AppColors.degraded,
+              iconColor: AppColors.primaryLight,
               title: 'MTTR Target',
               subtitle: 'Mean time to resolution: ${settings.mttrTargetHours}h',
               isLast: true,
@@ -275,7 +257,7 @@ class _ManagerSettingsContent extends StatelessWidget {
           _buildCard([
             _Tile(
               icon: Icons.crisis_alert_rounded,
-              iconColor: AppColors.severityCritical,
+              iconColor: AppColors.primaryDark,
               title: 'Critical Alerts',
               subtitle: 'Immediate push for severity=critical',
               trailing: Switch(
@@ -317,47 +299,6 @@ class _ManagerSettingsContent extends StatelessWidget {
                 activeColor: AppColors.primary,
               ),
             ),
-            _Tile(
-              icon: Icons.info_rounded,
-              iconColor: AppColors.textSecondary,
-              title: 'System Events',
-              subtitle: 'Server health, config changes, user logins',
-              isLast: true,
-              trailing: Switch(
-                value: settings.systemEvents,
-                onChanged: (_) => settings.toggle('systemEvents'),
-                activeColor: AppColors.primary,
-              ),
-            ),
-          ]),
-
-          const SizedBox(height: 4),
-
-          // ── Display ────────────────────────────────────────────────────
-          const _SectionHeader('Display'),
-          _buildCard([
-            _Tile(
-              icon: Icons.dark_mode_rounded,
-              iconColor: AppColors.primaryDark,
-              title: 'Dark Mode',
-              subtitle: 'Switch to dark colour scheme',
-              trailing: Switch(
-                value: theme.isDarkMode,
-                onChanged: theme.setDarkMode,
-              ),
-            ),
-            _Tile(
-              icon: Icons.view_list_rounded,
-              iconColor: AppColors.primaryLight,
-              title: 'Compact List View',
-              subtitle: 'Smaller rows to display more on screen',
-              isLast: true,
-              trailing: Switch(
-                value: settings.compactList,
-                onChanged: (_) => settings.toggle('compactList'),
-                activeColor: AppColors.primary,
-              ),
-            ),
           ]),
 
           const SizedBox(height: 4),
@@ -365,16 +306,6 @@ class _ManagerSettingsContent extends StatelessWidget {
           // ── System ─────────────────────────────────────────────────────
           const _SectionHeader('System'),
           _buildCard([
-            _Tile(
-              icon: Icons.sync_rounded,
-              iconColor: AppColors.primaryLight,
-              title: 'Dashboard Refresh',
-              subtitle: 'Auto-reload every ${settings.refreshInterval}s',
-              trailing: _PickerChip(
-                value: '${settings.refreshInterval}s',
-                onTap: () => _pickRefresh(context, settings),
-              ),
-            ),
             _Tile(
               icon: Icons.info_outline_rounded,
               iconColor: AppColors.textSecondary,
@@ -391,7 +322,7 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.logout_rounded,
-              iconColor: AppColors.severityCritical,
+              iconColor: AppColors.primaryDark,
               title: 'Sign Out',
               subtitle: 'Log out of the manager portal',
               isLast: true,
@@ -548,9 +479,6 @@ class _ManagerSettingsContent extends StatelessWidget {
         'Report generation — backend export endpoint coming soon');
   }
 
-  void _showApiSettings(BuildContext context) {
-    AppUtils.showSnackbar(context, 'API settings coming soon');
-  }
 
   void _showTechnicianPerformance(BuildContext context) {
     final tasks = context.read<TasksProvider>().tasks;
@@ -705,48 +633,9 @@ class _ManagerSettingsContent extends StatelessWidget {
     );
   }
 
-  void _pickRefresh(BuildContext context, ManagerSettingsProvider s) {
-    _pickOptions(
-      context: context,
-      label: 'Dashboard Refresh',
-      current: s.refreshInterval,
-      options: const [15, 30, 60, 120, 300],
-      labelFor: (v) => v < 60 ? '${v}s' : '${v ~/ 60}m',
-      onSelected: s.setRefreshInterval,
-    );
-  }
-
-  void _pickOptions<T>({
-    required BuildContext context,
-    required String label,
-    required T current,
-    required List<T> options,
-    required String Function(T) labelFor,
-    required ValueChanged<T> onSelected,
-  }) {
-    showDialog<void>(
-      context: context,
-      builder: (_) => SimpleDialog(
-        title: Text(label),
-        children: options
-            .map((o) => RadioListTile<T>(
-                  title: Text(labelFor(o)),
-                  value: o,
-                  groupValue: current,
-                  onChanged: (v) {
-                    if (v != null) {
-                      onSelected(v);
-                      Navigator.pop(context);
-                    }
-                  },
-                  activeColor: AppColors.primary,
-                ))
-            .toList(),
-      ),
-    );
-  }
 
   void _confirmSignOut(BuildContext context) {
+    final parentContext = context;
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
@@ -757,12 +646,22 @@ class _ManagerSettingsContent extends StatelessWidget {
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel')),
           FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.read<AuthProvider>().logout();
+            onPressed: () async {
+              Navigator.of(context).pop();
+              try {
+                await parentContext.read<AuthProvider>().logout();
+              } catch (_) {
+                // Fall through to navigation even if logout cleanup fails.
+              }
+              if (!parentContext.mounted) return;
+              Navigator.of(parentContext, rootNavigator: true)
+                  .pushNamedAndRemoveUntil(
+                AppConstants.loginRoute,
+                (route) => false,
+              );
             },
             style: FilledButton.styleFrom(
-                backgroundColor: AppColors.severityCritical),
+              backgroundColor: AppColors.primaryDark),
             child: const Text('Sign Out'),
           ),
         ],
@@ -815,11 +714,11 @@ class _ManagerSettingsContent extends StatelessWidget {
                 _StatBox(label: 'Tasks', value: '$total',
                     color: AppColors.primaryDark),
                 _StatBox(label: 'Success', value: '$succeeded',
-                    color: AppColors.online),
+                  color: AppColors.primary),
                 _StatBox(label: 'Failed', value: '$failed',
-                    color: AppColors.offline),
+                  color: AppColors.primaryDark),
                 _StatBox(label: 'Pending', value: '$pending',
-                    color: AppColors.degraded),
+                  color: AppColors.primaryLight),
               ],
             ),
             const SizedBox(height: 16),
@@ -843,10 +742,10 @@ class _ManagerSettingsContent extends StatelessWidget {
                 minHeight:       10,
                 backgroundColor: AppColors.divider,
                 color: rate >= 80
-                    ? AppColors.online
-                    : rate >= 50
-                        ? AppColors.degraded
-                        : AppColors.offline,
+                  ? AppColors.primary
+                  : rate >= 50
+                    ? AppColors.primaryLight
+                    : AppColors.primaryDark,
               ),
             ),
             const SizedBox(height: 12),
@@ -854,22 +753,22 @@ class _ManagerSettingsContent extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color:        AppColors.severityCritical.withOpacity(0.08),
+                    color:        AppColors.primaryDark.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(8),
                   border:       Border.all(
-                      color: AppColors.severityCritical.withOpacity(0.3)),
+                      color: AppColors.primaryDark.withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
                     const Icon(Icons.warning_amber_rounded,
-                        color: AppColors.severityCritical, size: 18),
+                      color: AppColors.primaryDark, size: 18),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         '$failed task${failed == 1 ? '' : 's'} currently failing — review and reassign.',
                         style: const TextStyle(
-                            color: AppColors.severityCritical,
-                            fontSize: 13),
+                          color: AppColors.primaryDark,
+                          fontSize: 13),
                       ),
                     ),
                   ],
@@ -922,8 +821,8 @@ class _UnassignedTasksSheet extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
               child: Row(
                 children: [
-                  const Icon(Icons.assignment_late_rounded,
-                      color: AppColors.severityHigh),
+                    const Icon(Icons.assignment_late_rounded,
+                      color: AppColors.primaryDark),
                   const SizedBox(width: 8),
                   Text('Unassigned Tasks (${tasks.length})',
                       style: const TextStyle(
@@ -945,8 +844,8 @@ class _UnassignedTasksSheet extends StatelessWidget {
                       itemBuilder: (_, i) {
                         final t = tasks[i];
                         return ListTile(
-                          leading: const Icon(Icons.task_alt_rounded,
-                              color: AppColors.degraded),
+                            leading: const Icon(Icons.task_alt_rounded,
+                              color: AppColors.primaryLight),
                           title: Text(t.name),
                           subtitle: Text(t.deviceName ?? '—'),
                           trailing: Text(t.taskType,
@@ -984,7 +883,7 @@ class _CustomerAlertsSheet extends StatelessWidget {
               child: Row(
                 children: [
                   const Icon(Icons.support_agent_rounded,
-                      color: AppColors.severityCritical),
+                      color: AppColors.primaryDark),
                   const SizedBox(width: 8),
                   Text('Open Alerts (${alerts.length})',
                       style: const TextStyle(
@@ -1006,10 +905,10 @@ class _CustomerAlertsSheet extends StatelessWidget {
                       itemBuilder: (_, i) {
                         final a = alerts[i];
                         final color = a.severity == 'critical'
-                            ? AppColors.severityCritical
+                          ? AppColors.primaryDark
                             : a.severity == 'high'
-                                ? AppColors.severityHigh
-                                : AppColors.degraded;
+                            ? AppColors.primary
+                            : AppColors.primaryLight;
                         return ListTile(
                           leading: Icon(Icons.warning_amber_rounded,
                               color: color),
@@ -1114,12 +1013,12 @@ class _OpenAlertsBadge extends StatelessWidget {
     final count = context.watch<AlertsProvider>().activeAlerts.length;
     if (count == 0) {
       return const Icon(Icons.check_circle_rounded,
-          color: AppColors.online, size: 20);
+          color: AppColors.primary, size: 20);
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color:        AppColors.severityCritical,
+        color:        AppColors.primaryDark,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text('$count',
@@ -1141,12 +1040,12 @@ class _UnassignedTasksBadge extends StatelessWidget {
         .length;
     if (count == 0) {
       return const Icon(Icons.check_circle_rounded,
-          color: AppColors.online, size: 20);
+          color: AppColors.primary, size: 20);
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color:        AppColors.severityHigh,
+        color:        AppColors.primaryLight,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text('$count',

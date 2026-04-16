@@ -29,13 +29,14 @@ class _TaskFormScreenState extends State<TaskFormScreen>
   late final TextEditingController _descriptionCtrl;
 
   // ── Form state ────────────────────────────────────────────────────────────
-  String  _taskType     = 'snmp';
+  String  _taskType     = 'install';
   int     _intervalSecs = 300;
   int     _timeoutSecs  = 5;
   bool    _enabled      = true;
   int?    _deviceId;
   String? _deviceName;
   bool    _isSaving     = false;
+  String? _templateKey;
 
   TaskModel? _existingTask;
   bool get _isEditing => _existingTask != null;
@@ -62,6 +63,100 @@ class _TaskFormScreenState extends State<TaskFormScreen>
     (10, '10 seconds'),
     (15, '15 seconds'),
     (30, '30 seconds'),
+  ];
+
+  static const _taskTemplates = <_TaskTemplate>[
+    _TaskTemplate(
+      key: 'install_clients',
+      name: 'Install 3 clients',
+      description: 'Checklist:\n'
+          '- Install CPE\n'
+          '- Align antenna\n'
+          '- Configure router\n'
+          '- Verify throughput\n'
+          '- Photos + client sign-off\n'
+          'Status:\n'
+          '- Completed: 3 installs + evidence\n'
+          '- Partial: 1-2 installs\n'
+          '- Not done: 0 installs',
+    ),
+    _TaskTemplate(
+      key: 'site_survey',
+      name: 'CO site survey',
+      description: 'Checklist:\n'
+          '- LOS check\n'
+          '- Signal strength\n'
+          '- Obstruction notes\n'
+          '- Photos\n'
+          '- GPS pin',
+    ),
+    _TaskTemplate(
+      key: 'fault_resolution',
+      name: 'Fault resolution visit',
+      description: 'Checklist:\n'
+          '- Replace CPE if needed\n'
+          '- Re-terminate fiber\n'
+          '- Change power supply\n'
+          '- Port swap\n'
+          '- Final verification',
+    ),
+    _TaskTemplate(
+      key: 'preventive_maintenance',
+      name: 'Preventive maintenance',
+      description: 'Checklist:\n'
+          '- Clean/inspect tower\n'
+          '- Tighten brackets\n'
+          '- Label cables\n'
+          '- Photo evidence',
+    ),
+    _TaskTemplate(
+      key: 'network_changes',
+      name: 'Network change',
+      description: 'Checklist:\n'
+          '- VLAN setup\n'
+          '- IP changes\n'
+          '- Firmware upgrade\n'
+          '- Config backup/restore',
+    ),
+    _TaskTemplate(
+      key: 'field_audit',
+      name: 'Field audit',
+      description: 'Checklist:\n'
+          '- Inventory check\n'
+          '- Serial/MAC verification\n'
+          '- Cable trace\n'
+          '- Photos',
+    ),
+    _TaskTemplate(
+      key: 'network_expansion',
+      name: 'Network expansion',
+      description: 'Checklist:\n'
+          '- Pole install\n'
+          '- New AP mounting\n'
+          '- Sector alignment\n'
+          '- Verification',
+    ),
+    _TaskTemplate(
+      key: 'customer_support',
+      name: 'Customer support visit',
+      description: 'Checklist:\n'
+          '- Wi-Fi optimization\n'
+          '- Coverage tuning\n'
+          '- Speed validation\n'
+          '- Client sign-off',
+    ),
+    _TaskTemplate(
+      key: 'ads_kathem',
+      name: 'Run ads at Kathembony',
+      description: 'Checklist:\n'
+          '- Place ads at agreed spots\n'
+          '- Photos\n'
+          '- Brief report\n'
+          'Status:\n'
+          '- Completed: all spots covered\n'
+          '- Partial: some locations covered\n'
+          '- Not done: none placed',
+    ),
   ];
 
   @override
@@ -132,7 +227,7 @@ class _TaskFormScreenState extends State<TaskFormScreen>
       timeoutSecs:  _timeoutSecs,
       enabled:      _enabled,
       lastRun:      _existingTask?.lastRun,
-      lastStatus:   _existingTask?.lastStatus ?? 'pending',
+      lastStatus:   _existingTask?.lastStatus ?? 'not_done',
       createdAt:    _existingTask?.createdAt ?? now,
       updatedAt:    _isEditing ? now : null,
     );
@@ -228,6 +323,35 @@ class _TaskFormScreenState extends State<TaskFormScreen>
       title: 'Basic Information',
       icon:  Icons.info_outline_rounded,
       children: [
+        _buildDropdown<String?>(
+          label:   'Task Template',
+          icon:    Icons.list_alt_rounded,
+          value:   _templateKey,
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Custom task (no template)'),
+            ),
+            ..._taskTemplates.map((t) => DropdownMenuItem<String?>(
+              value: t.key,
+              child: Text(t.name),
+            )),
+          ],
+          onChanged: (v) {
+            setState(() {
+              _templateKey = v;
+              final template = _taskTemplates
+                  .where((t) => t.key == v)
+                  .cast<_TaskTemplate?>()
+                  .firstWhere((t) => t != null, orElse: () => null);
+              if (template != null) {
+                _nameCtrl.text = template.name;
+                _descriptionCtrl.text = template.description;
+              }
+            });
+          },
+        ),
+        const SizedBox(height: 14),
         _buildTextField(
           controller: _nameCtrl,
           label:      'Task Name',
@@ -245,11 +369,15 @@ class _TaskFormScreenState extends State<TaskFormScreen>
           icon:    Icons.category_rounded,
           value:   _taskType,
           items: const [
-            DropdownMenuItem(value: 'snmp', child: Text('SNMP Poll')),
-            DropdownMenuItem(value: 'ping', child: Text('ICMP Ping')),
-            DropdownMenuItem(value: 'http', child: Text('HTTP Check')),
-            DropdownMenuItem(value: 'tcp',  child: Text('TCP Connect')),
-            DropdownMenuItem(value: 'dns',  child: Text('DNS Lookup')),
+            DropdownMenuItem(value: 'install', child: Text('Client Install')),
+            DropdownMenuItem(value: 'survey', child: Text('Site Survey')),
+            DropdownMenuItem(value: 'fault', child: Text('Fault Resolution')),
+            DropdownMenuItem(value: 'maintenance', child: Text('Preventive Maintenance')),
+            DropdownMenuItem(value: 'change', child: Text('Network Change')),
+            DropdownMenuItem(value: 'audit', child: Text('Field Audit')),
+            DropdownMenuItem(value: 'expansion', child: Text('Network Expansion')),
+            DropdownMenuItem(value: 'support', child: Text('Customer Support')),
+            DropdownMenuItem(value: 'marketing', child: Text('Marketing Activity')),
           ],
           onChanged: (v) => setState(() => _taskType = v!),
         ),
@@ -261,7 +389,7 @@ class _TaskFormScreenState extends State<TaskFormScreen>
               : 'Task is paused',
           value:    _enabled,
           icon:     Icons.power_settings_new_rounded,
-          color:    _enabled ? AppColors.online : AppColors.offline,
+          color:    _enabled ? AppColors.primary : AppColors.primaryDark,
           onChanged: (v) => setState(() => _enabled = v),
         ),
       ],
@@ -596,4 +724,15 @@ class _FormSection extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TaskTemplate {
+  final String key;
+  final String name;
+  final String description;
+  const _TaskTemplate({
+    required this.key,
+    required this.name,
+    required this.description,
+  });
 }

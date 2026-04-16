@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../core/utils.dart';
 import '../../data/models/device_model.dart';
 import '../../services/api_client.dart';
+import '../auth/auth_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DeviceManagementProvider
@@ -167,17 +168,35 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
   Widget build(BuildContext context) {
     return Consumer<DeviceManagementProvider>(
       builder: (context, provider, _) {
+        final auth = Provider.of<AuthProvider>(context, listen: false);
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
             automaticallyImplyLeading: false,
-            title: const Text('Device Management'),
-            actions: [
-              IconButton(
-                icon:    const Icon(Icons.add),
-                tooltip: 'Add Device',
-                onPressed: () => _showAddDialog(context, provider),
+            elevation: 0,
+            flexibleSpace: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.appBarGradientStart,
+                    AppColors.appBarGradientEnd,
+                  ],
+                ),
               ),
+            ),
+            title: const Text(
+              'Device Management',
+              style: TextStyle(color: AppColors.textOnDark),
+            ),
+            actions: [
+              if (auth.isAdmin)
+                IconButton(
+                  icon:    const Icon(Icons.add),
+                  tooltip: 'Add Device',
+                  onPressed: () => _showAddDialog(context, provider),
+                ),
             ],
           ),
           body: provider.isLoading
@@ -371,7 +390,7 @@ class _DeviceManagementScreenState extends State<DeviceManagementScreen> {
             child:     const Text('Cancel'),
           ),
           ElevatedButton(
-            style:     ElevatedButton.styleFrom(backgroundColor: AppColors.severityCritical),
+            style:     ElevatedButton.styleFrom(backgroundColor: AppColors.primaryDark),
             onPressed: () {
               provider.deactivate(device.model.id);
               Navigator.pop(dialogContext);
@@ -404,7 +423,7 @@ class _DeviceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d          = device.model;
-    final statusColor = AppUtils.statusColor(d.status);
+    final statusColor = _statusBlue(d.status);
     final inactive   = !device.isActive;
 
     return Opacity(
@@ -503,8 +522,8 @@ class _DeviceCard extends StatelessWidget {
                     onPressed: onReactivate,
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      foregroundColor: AppColors.online,
-                      side: const BorderSide(color: AppColors.online),
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
                     ),
                   )
                 else
@@ -514,8 +533,8 @@ class _DeviceCard extends StatelessWidget {
                     onPressed: onDeactivate,
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      foregroundColor: AppColors.severityCritical,
-                      side: const BorderSide(color: AppColors.severityCritical),
+                      foregroundColor: AppColors.primaryDark,
+                      side: const BorderSide(color: AppColors.primaryDark),
                     ),
                   ),
               ],
@@ -549,6 +568,19 @@ class _InfoChip extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+Color _statusBlue(String status) {
+  switch (status) {
+    case 'online':
+      return AppColors.primary;
+    case 'degraded':
+      return AppColors.primaryLight;
+    case 'offline':
+      return AppColors.primaryDark;
+    default:
+      return AppColors.primaryLight.withOpacity(0.6);
   }
 }
 

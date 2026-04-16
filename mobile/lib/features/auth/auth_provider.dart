@@ -40,7 +40,8 @@ class AuthProvider extends ChangeNotifier {
   bool get isTechnician => userRole == AppConstants.roleTechnician;
   bool get isManager    => userRole == AppConstants.roleManager;
   bool get isCustomer   => userRole == AppConstants.roleCustomer;
-  bool get isAdmin      => userRole == AppConstants.roleAdmin;
+  bool get isAdmin      =>
+      userRole == AppConstants.roleAdmin || userRole == AppConstants.roleManager;
 
   /// Returns the named route the user should land on after login.
   /// Used by LoginScreen and SplashScreen — single place for routing logic.

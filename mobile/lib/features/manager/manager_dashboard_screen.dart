@@ -132,7 +132,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     return Consumer<ManagerDashboardProvider>(
       builder: (context, provider, _) {
         return Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: AppColors.bg(context),
           appBar: AppBar(
             automaticallyImplyLeading: false,
             toolbarHeight: 64,
@@ -161,8 +161,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                     ),
                     Text(
                       'Network Operations Centre',
-                      style: AppTextStyles.appBarSubtitle
-                          .copyWith(fontSize: 11, color: Colors.white60),
+                      style: AppTextStyles.appBarSubtitle.copyWith(
+                        fontSize: 11,
+                        color: AppColors.textOnDark.withOpacity(0.6),
+                      ),
                     ),
                   ],
                 );
@@ -170,7 +172,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.router_outlined, color: Colors.white),
+                icon: const Icon(Icons.router_outlined,
+                    color: AppColors.textOnDark),
                 tooltip: 'Devices',
                 onPressed: () {
                   AppUtils.haptic();
@@ -182,7 +185,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 },
               ),
               IconButton(
-                icon: const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                icon: const Icon(Icons.warning_amber_rounded,
+                    color: AppColors.textOnDark),
                 tooltip: 'Alerts',
                 onPressed: () {
                   AppUtils.haptic();
@@ -194,7 +198,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 },
               ),
               IconButton(
-                icon: const Icon(Icons.refresh, color: Colors.white),
+                icon: const Icon(Icons.refresh, color: AppColors.textOnDark),
                 tooltip: 'Refresh',
                 onPressed: provider.refresh,
               ),
@@ -230,8 +234,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           value: '${provider.networkUptimePct.toStringAsFixed(1)}%',
           icon: Icons.timeline,
           color: provider.networkUptimePct >= 90
-              ? AppColors.online
-              : AppColors.severityMedium,
+              ? AppColors.primary
+              : AppColors.primaryLight,
         ),
         const SizedBox(width: 10),
         _KpiCard(
@@ -239,8 +243,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           value: provider.activeAlerts.toString(),
           icon: Icons.notifications_active,
           color: provider.activeAlerts > 0
-              ? AppColors.severityCritical
-              : AppColors.online,
+              ? AppColors.primaryDark
+              : AppColors.primary,
         ),
         const SizedBox(width: 10),
         _KpiCard(
@@ -280,7 +284,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                       sections: [
                         PieChartSectionData(
                           value: provider.networkUptimePct,
-                          color: AppColors.online,
+                          color: AppColors.primary,
                           radius: 18,
                           showTitle: false,
                         ),
@@ -333,21 +337,21 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                           if (provider.onlineDevices > 0)
                             PieChartSectionData(
                               value: provider.onlineDevices.toDouble(),
-                              color: AppColors.online,
+                              color: AppColors.primary,
                               radius: 30,
                               showTitle: false,
                             ),
                           if (provider.degradedDevices > 0)
                             PieChartSectionData(
                               value: provider.degradedDevices.toDouble(),
-                              color: AppColors.severityMedium,
+                              color: AppColors.primaryLight,
                               radius: 30,
                               showTitle: false,
                             ),
                           if (provider.offlineDevices > 0)
                             PieChartSectionData(
                               value: provider.offlineDevices.toDouble(),
-                              color: AppColors.severityCritical,
+                              color: AppColors.primaryDark,
                               radius: 30,
                               showTitle: false,
                             ),
@@ -361,17 +365,17 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _LegendDot(
-                        color: AppColors.online,
+                        color: AppColors.primary,
                         label: 'Online   ${provider.onlineDevices}',
                       ),
                       const SizedBox(height: 6),
                       _LegendDot(
-                        color: AppColors.severityMedium,
+                        color: AppColors.primaryLight,
                         label: 'Degraded ${provider.degradedDevices}',
                       ),
                       const SizedBox(height: 6),
                       _LegendDot(
-                        color: AppColors.severityCritical,
+                        color: AppColors.primaryDark,
                         label: 'Offline  ${provider.offlineDevices}',
                       ),
                     ],
@@ -639,7 +643,7 @@ class _FleetRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = AppUtils.statusColor(device.status);
+    final statusColor = _statusBlue(device.status);
     final latency = metric?.latencyMs != null
         ? '${metric!.latencyMs!.toStringAsFixed(0)} ms'
         : '--';
@@ -699,5 +703,18 @@ class _FleetRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+Color _statusBlue(String status) {
+  switch (status) {
+    case 'online':
+      return AppColors.primary;
+    case 'degraded':
+      return AppColors.primaryLight;
+    case 'offline':
+      return AppColors.primaryDark;
+    default:
+      return AppColors.primaryLight.withOpacity(0.6);
   }
 }

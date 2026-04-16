@@ -178,20 +178,38 @@ class _ReportsScreenState extends State<ReportsScreen>
           backgroundColor: AppColors.background,
           appBar: AppBar(
             automaticallyImplyLeading: false,
-            title: const Text('Reports'),
+            elevation: 0,
+            flexibleSpace: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.appBarGradientStart,
+                    AppColors.appBarGradientEnd,
+                  ],
+                ),
+              ),
+            ),
+            title: const Text(
+              'Reports',
+              style: TextStyle(color: AppColors.textOnDark),
+            ),
             actions: [
               // Export button
               TextButton.icon(
-                icon:  const Icon(Icons.download_outlined, color: Colors.white, size: 18),
-                label: const Text('Export', style: TextStyle(color: Colors.white, fontSize: 13)),
+                icon:  const Icon(Icons.download_outlined,
+                    color: AppColors.textOnDark, size: 18),
+                label: const Text('Export', style: TextStyle(
+                    color: AppColors.textOnDark, fontSize: 13)),
                 onPressed: () => _showExportSheet(context),
               ),
             ],
             bottom: TabBar(
               controller: _tabController,
-              labelColor:         Colors.white,
-              unselectedLabelColor: Colors.white60,
-              indicatorColor:     Colors.white,
+              labelColor:         AppColors.textOnDark,
+              unselectedLabelColor: AppColors.textOnDark.withOpacity(0.6),
+              indicatorColor:     AppColors.textOnDark,
               labelStyle:         const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               tabs: const [
                 Tab(text: 'Performance'),
@@ -305,7 +323,7 @@ class _ReportsScreenState extends State<ReportsScreen>
             _ExportOption(
               icon:  Icons.picture_as_pdf,
               label: 'Export as PDF',
-              color: const Color(0xFFE53935),
+              color: AppColors.primaryDark,
               onTap: () {
                 Navigator.pop(context);
                 AppUtils.showSnackbar(context, 'PDF export is not yet available. Use CSV for now.');
@@ -315,7 +333,7 @@ class _ReportsScreenState extends State<ReportsScreen>
             _ExportOption(
               icon:  Icons.table_chart_outlined,
               label: 'Export as CSV',
-              color: AppColors.online,
+              color: AppColors.primary,
               onTap: () => _exportCsv(context),
             ),
             SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
@@ -447,12 +465,12 @@ class _PerformanceTab extends StatelessWidget {
                   LineChartBarData(
                     spots:    provider.packetLossSpots,
                     isCurved: true,
-                    color:    AppColors.severityHigh,
+                    color:    AppColors.primaryDark,
                     barWidth: 2.5,
                     dotData:  const FlDotData(show: false),
                     belowBarData: BarAreaData(
                       show:  true,
-                      color: AppColors.severityHigh.withOpacity(0.07),
+                      color: AppColors.primaryDark.withOpacity(0.07),
                     ),
                   ),
                 ],
@@ -488,9 +506,9 @@ class _FaultsTab extends StatelessWidget {
           children: [
             _StatPill(label: 'Total Faults', value: total.toString(), color: AppColors.primary),
             const SizedBox(width: 10),
-            _StatPill(label: 'Resolved', value: provider.alerts.where((a) => a.isResolved).length.toString(), color: AppColors.online),
+            _StatPill(label: 'Resolved', value: provider.alerts.where((a) => a.isResolved).length.toString(), color: AppColors.primaryLight),
             const SizedBox(width: 10),
-            _StatPill(label: 'Open', value: provider.alerts.where((a) => !a.isResolved).length.toString(), color: AppColors.severityCritical),
+            _StatPill(label: 'Open', value: provider.alerts.where((a) => !a.isResolved).length.toString(), color: AppColors.primaryDark),
           ],
         ),
         const SizedBox(height: 16),
@@ -544,7 +562,7 @@ class _FaultsTab extends StatelessWidget {
                     BarChartRodData(
                       toY:          counts[i].toDouble(),
                       color:        counts[i] >= 4
-                          ? AppColors.severityHigh
+                          ? AppColors.primaryDark
                           : AppColors.primaryLight,
                       width:        24,
                       borderRadius: BorderRadius.circular(4),
@@ -695,10 +713,10 @@ class _UptimeBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = uptime.pct >= 99
-        ? AppColors.online
-        : uptime.pct >= 80
-            ? AppColors.severityMedium
-            : AppColors.severityCritical;
+      ? AppColors.primary
+      : uptime.pct >= 80
+        ? AppColors.primaryLight
+        : AppColors.primaryDark;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),

@@ -132,7 +132,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
           );
         },
       ),
-      floatingActionButton: _buildFab(),
+      floatingActionButton: null,
     );
   }
 
@@ -326,7 +326,7 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                 child: EmptyState(
                   icon:        Icons.router_outlined,
                   title:       'No Devices',
-                  message:     'Add your first device to start monitoring.',
+                  message:     'No devices are available yet.',
                 ),
               )
             : SliverList(
@@ -816,34 +816,6 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // ── FAB ───────────────────────────────────────────────────────────────────
-
-  Widget _buildFab() {
-    return AnimatedSlide(
-      duration: const Duration(milliseconds: 180),
-      offset: _fabVisible ? Offset.zero : const Offset(0, 0.2),
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 200),
-        opacity: _fabVisible ? 1 : 0,
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 200),
-          scale: _fabVisible ? 1 : 0.95,
-          child: FloatingActionButton.small(
-            onPressed: () {
-              AppUtils.haptic();
-              Navigator.of(context).pushNamed(AppConstants.deviceFormRoute);
-            },
-            tooltip: 'Add Device',
-            backgroundColor: AppColors.primary,
-            foregroundColor: AppColors.textOnDark,
-            elevation: 2,
-            child: const Icon(Icons.add_rounded, size: 18),
-          ),
         ),
       ),
     );
