@@ -110,7 +110,35 @@ class AuthService {
     );
   }
 
-  // ── Logout (server-side token blacklist) ──────────────────────────────────
+  // ── Password reset ──────────────────────────────────────────────────────────
+  /// Step 1: Request a password reset OTP via email
+  static Future<void> forgotPassword({
+    required String email,
+  }) async {
+    await _dio.post(
+      AppConstants.forgotPasswordEndpoint,
+      data: {'email': email},
+    );
+  }
+
+  /// Step 2: Reset password using OTP and new password
+  static Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final response = await _dio.post(
+      AppConstants.resetPasswordEndpoint,
+      data: {
+        'email': email,
+        'otp': otp,
+        'new_password': newPassword,
+        'confirm_password': confirmPassword,
+      },
+    );
+    return response.data as Map<String, dynamic>;
+  }
   static Future<void> revokeToken(String refreshToken) async {
     try {
       final access = await getAccessToken();

@@ -9,7 +9,10 @@ class AppConstants {
   static const String appVersion = '1.0.0';
 
   // ── API Configuration ────────────────────────────────────────────────────
-  static const String baseUrl        = 'http://127.0.0.1:8000/api';
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://127.0.0.1:8000/api', // Android emulator default
+  );
   static const int    connectTimeout = 30000;
   static const int    receiveTimeout = 30000;
 
@@ -21,6 +24,8 @@ class AppConstants {
   static const String resendOtpEndpoint    = '/users/resend-otp/';
   static const String profileEndpoint      = '/users/profile/';
   static const String tokenRefreshEndpoint = '/users/token/refresh/';
+  static const String forgotPasswordEndpoint = '/users/forgot-password/';
+  static const String resetPasswordEndpoint = '/users/reset-password/';
   static const String devicesEndpoint         = '/devices/';
   static const String myDevicesEndpoint       = '/devices/my-devices/';
   static const String metricsEndpoint         = '/metrics/';
@@ -44,6 +49,7 @@ class AppConstants {
   static const String registerRoute       = '/register';
   static const String verifyEmailRoute    = '/verify-email';
   static const String forgotPasswordRoute = '/forgot-password';
+  static const String resetPasswordRoute = '/reset-password';
   static const String technicianHomeRoute = '/technician';
   static const String managerHomeRoute    = '/manager';
   static const String customerHomeRoute   = '/customer';

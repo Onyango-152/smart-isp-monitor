@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/utils.dart';
+import 'auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -26,14 +27,34 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSubmitting = true);
 
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
+    try {
+      final email = _emailCtrl.text.trim();
+      await AuthService.forgotPassword(email: email);
 
-    setState(() => _isSubmitting = false);
-    AppUtils.showSnackbar(
-      context,
-      'If this email is registered, a reset link will be sent shortly.',
-    );
+      if (!mounted) return;
+
+      AppUtils.showSnackbar(
+        context,
+        'If an account with this email exists, a reset code will be sent.',
+      );
+
+      // Navigate to reset password screen where user can enter OTP
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed(
+          AppConstants.resetPasswordRoute,
+          arguments: email,
+        );
+      });
+    } catch (e) {
+      if (!mounted) return;
+      AppUtils.showSnackbar(
+        context,
+        'Error: ${e.toString()}',
+        isError: true,
+      );
+      setState(() => _isSubmitting = false);
+    }
   }
 
   @override
