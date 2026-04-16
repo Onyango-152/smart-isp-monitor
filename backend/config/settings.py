@@ -25,7 +25,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-yve2v!qt^-7(i)(0z-d+2tjdxodxubi@e#)iqu^1&n)%1$ony^'
+SECRET_KEY = os.getenv(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-yve2v!qt^-7(i)(0z-d+2tjdxodxubi@e#)iqu^1&n)%1$ony^'  # Fallback for dev
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -94,14 +97,22 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME':     os.getenv('DB_NAME', 'isp_monitor'),
+#         'USER':     os.getenv('DB_USER', 'isp_admin'),
+#         'PASSWORD': os.getenv('DB_PASSWORD', ''),
+#         'HOST':     os.getenv('DB_HOST', 'localhost'),
+#         'PORT':     os.getenv('DB_PORT', '5432'),
+#     }
+# }
+
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME':     os.getenv('DB_NAME', 'isp_monitor'),
-        'USER':     os.getenv('DB_USER', 'isp_admin'),
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),
-        'HOST':     os.getenv('DB_HOST', 'localhost'),
-        'PORT':     os.getenv('DB_PORT', '5432'),
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 

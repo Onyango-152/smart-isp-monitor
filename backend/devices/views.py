@@ -42,7 +42,7 @@ class DeviceListView(generics.ListCreateAPIView):
     """
     queryset = Device.objects.all().order_by('name')
     serializer_class = DeviceSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
         """Auto-assign device to current user if not specified"""

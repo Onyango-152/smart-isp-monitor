@@ -12,6 +12,10 @@ urlpatterns = [
     path('verify-email/',    views.VerifyEmailView.as_view(),    name='verify-email'),
     path('resend-otp/',      views.ResendOtpView.as_view(),      name='resend-otp'),
 
+    # Password reset endpoints — public (no token needed)
+    path('forgot-password/', views.ForgotPasswordView.as_view(),  name='forgot-password'),
+    path('reset-password/',  views.ResetPasswordView.as_view(),   name='reset-password'),
+
     # TokenRefreshView comes from simplejwt — it accepts a refresh token
     # and returns a new access token. The Flutter app calls this
     # automatically when the access token expires.
