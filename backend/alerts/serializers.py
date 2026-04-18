@@ -19,11 +19,11 @@ class AlertRuleSerializer(serializers.ModelSerializer):
 class AlertSerializer(serializers.ModelSerializer):
     rule_name          = serializers.CharField(source='rule.name',   read_only=True, default=None)
     device_name        = serializers.CharField(source='device.name', read_only=True)
-    device_id          = serializers.IntegerField(read_only=True)
     acknowledged_by_username = serializers.CharField(
         source='acknowledged_by.username', read_only=True, default=None
     )
     # Flattened fields expected by the mobile AlertModel
+    device_id          = serializers.IntegerField(source='device.id', read_only=True)
     alert_type         = serializers.SerializerMethodField()
     is_resolved        = serializers.SerializerMethodField()
     is_acknowledged    = serializers.SerializerMethodField()

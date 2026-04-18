@@ -24,6 +24,7 @@ from .services import (
     reset_password,
     can_resend_password_reset_otp,
 )
+from .permissions import IsAdmin, IsManager
 
 User = get_user_model()
 
@@ -227,25 +228,11 @@ class ChangePasswordView(APIView):
 
 class UserListView(generics.ListCreateAPIView):
     """
-    User List View (Admin only)
-    
-    GET: List all users (admin only)
-    POST: Create new user (admin only)
-    
-    GET /api/users/
+    GET /api/users/  — admin only
     """
-    queryset = User.objects.all().order_by('-date_joined')
-    serializer_class = UserListSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        """Admin only - retrieve all users"""
-        if not request.user.is_staff:
-            return Response(
-                {'error': 'Admin access required'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().get(request, *args, **kwargs)
+    queryset           = User.objects.all().order_by('-date_joined')
+    serializer_class   = UserListSerializer
+    permission_classes = [IsAdmin]
 
 
 class ClientListView(generics.ListAPIView):
@@ -255,12 +242,9 @@ class ClientListView(generics.ListAPIView):
     Accessible to managers and admins only.
     """
     serializer_class   = UserListSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsManager]
 
     def get_queryset(self):
-        user = self.request.user
-        if user.role not in ('manager', 'admin') and not user.is_staff:
-            return User.objects.none()
         return User.objects.filter(role='customer').order_by('-date_joined')
 
 

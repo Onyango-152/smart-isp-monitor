@@ -1,5 +1,8 @@
 from rest_framework import serializers
+from django.contrib.auth import get_user_model
 from .models import Device, DeviceType
+
+User = get_user_model()
 
 
 class DeviceTypeSerializer(serializers.ModelSerializer):
@@ -39,13 +42,20 @@ class DeviceSerializer(serializers.ModelSerializer):
     )
     assigned_to_username = serializers.CharField(
         source='assigned_to.username',
-        read_only=True
+        read_only=True,
+        default=None,
+    )
+    assigned_to = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        required=False,
+        allow_null=True,
     )
     # Fields that exist in the mobile model but not in the Django model
     mac_address  = serializers.SerializerMethodField()
     description  = serializers.SerializerMethodField()
     snmp_enabled = serializers.SerializerMethodField()
     is_active    = serializers.SerializerMethodField()
+    status       = serializers.SerializerMethodField()
     # Override snmp_community to always return a string (never null)
     snmp_community = serializers.SerializerMethodField()
 
@@ -63,6 +73,10 @@ class DeviceSerializer(serializers.ModelSerializer):
 
     def get_is_active(self, obj):
         return obj.status in ('online', 'unreachable', 'maintenance')
+
+    def get_status(self, obj):
+        # Map backend 'unreachable' to Flutter's 'degraded'
+        return 'degraded' if obj.status == 'unreachable' else obj.status
 
     def get_snmp_community(self, obj):
         return obj.snmp_community or ''

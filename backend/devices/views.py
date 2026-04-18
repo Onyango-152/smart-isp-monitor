@@ -6,28 +6,16 @@ from django.utils import timezone
 
 from .models import Device, DeviceType
 from .serializers import DeviceSerializer, DeviceTypeSerializer, DeviceStatusSerializer
+from users.permissions import IsTechnician
 
 
 class DeviceTypeListView(generics.ListCreateAPIView):
-    """
-    Device Type Management
-    
-    GET: List all device types (Router, Switch, Firewall, etc.)
-    POST: Create a new device type (admin only)
-    """
     queryset = DeviceType.objects.all()
     serializer_class = DeviceTypeSerializer
     permission_classes = [IsAuthenticated]
 
 
 class DeviceTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """
-    Device Type Detail View
-    
-    GET: Retrieve a specific device type
-    PUT: Update a device type
-    DELETE: Delete a device type
-    """
     queryset = DeviceType.objects.all()
     serializer_class = DeviceTypeSerializer
     permission_classes = [IsAuthenticated]
@@ -35,32 +23,29 @@ class DeviceTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class DeviceListView(generics.ListCreateAPIView):
     """
-    Device Management
-    
-    GET: List all devices with status and configuration
-    POST: Register a new device for monitoring
+    GET  /api/devices/  — all roles can list
+    POST /api/devices/  — technician, manager, admin only
     """
     queryset = Device.objects.all().order_by('name')
     serializer_class = DeviceSerializer
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsTechnician()]
+        return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        """Auto-assign device to current user if not specified"""
-        if serializer.validated_data.get('assigned_to'):
+        assigned_to = serializer.validated_data.get('assigned_to')
+        if assigned_to:
             serializer.save()
-            return
-
-        if self.request.user.is_authenticated:
-            serializer.save(assigned_to=self.request.user)
         else:
-            serializer.save()
+            serializer.save(assigned_to=self.request.user)
 
 
 class MyDevicesView(generics.ListAPIView):
     """
     GET /api/devices/my-devices/
     Returns only the devices assigned to the requesting user.
-    Intended for the customer portal — each customer sees only their equipment.
     """
     serializer_class   = DeviceSerializer
     permission_classes = [IsAuthenticated]
@@ -71,15 +56,20 @@ class MyDevicesView(generics.ListAPIView):
 
 class DeviceDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
-    Device Detail View
-    
-    GET: Get detailed information about a specific device
-    PUT: Update device configuration
-    DELETE: Remove device from monitoring
+    GET        — any authenticated user
+    PUT/PATCH  — technician, manager, admin
+    DELETE     — manager, admin
     """
     queryset = Device.objects.all()
     serializer_class = DeviceSerializer
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        from users.permissions import IsManager
+        if self.request.method == 'DELETE':
+            return [IsManager()]
+        if self.request.method in ('PUT', 'PATCH'):
+            return [IsTechnician()]
+        return [IsAuthenticated()]
 
 
 class DeviceStatusView(APIView):

@@ -8,6 +8,10 @@ urlpatterns = [
     # Returns flat MetricModel-compatible snapshots (one per device).
     path('',                             views.DeviceMetricSnapshotListView.as_view(), name='snapshot-list'),
 
+    # Metric history — GET /api/metrics/history/<device_id>/
+    # Returns a list of flat snapshots ordered by recorded_at (for charts).
+    path('history/<int:device_id>/',     views.DeviceMetricHistoryView.as_view(),     name='metric-history'),
+
     # Metric type management
     path('types/',                       views.MetricListView.as_view(),              name='type-list'),
     path('types/<int:pk>/',              views.MetricDetailView.as_view(),            name='type-detail'),

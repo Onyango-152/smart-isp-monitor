@@ -112,20 +112,24 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class UserListSerializer(serializers.ModelSerializer):
-    """Admin user listing — shows the canonical role field."""
-    full_name = serializers.SerializerMethodField()
+    """Admin/manager user listing."""
+    full_name    = serializers.SerializerMethodField()
+    device_count = serializers.SerializerMethodField()
 
     class Meta:
         model  = User
         fields = (
             'id', 'username', 'email', 'full_name', 'role',
             'organization', 'phone', 'is_staff', 'is_active',
-            'date_joined', 'last_login',
+            'date_joined', 'last_login', 'device_count',
         )
         read_only_fields = ('id', 'date_joined', 'last_login')
 
     def get_full_name(self, obj):
         return obj.get_full_name()
+
+    def get_device_count(self, obj):
+        return obj.device_set.count()
 
 
 class VerifyEmailSerializer(serializers.Serializer):
@@ -135,6 +139,11 @@ class VerifyEmailSerializer(serializers.Serializer):
 
 class ResendOtpSerializer(serializers.Serializer):
     email = serializers.EmailField()
+
+
+class ReportIssueSerializer(serializers.Serializer):
+    """Customer self-reported issue."""
+    description = serializers.CharField(min_length=5, max_length=1000)
 
 
 class ForgotPasswordSerializer(serializers.Serializer):

@@ -24,4 +24,7 @@ urlpatterns = [
     # Notification channels
     path('channels/',             views.NotificationChannelListView.as_view(), name='channel-list'),
     path('channels/<int:pk>/',    views.NotificationChannelDetailView.as_view(), name='channel-detail'),
+
+    # Customer self-reported issues
+    path('report/',               views.ReportIssueView.as_view(),         name='report-issue'),
 ]

@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'alerts',
     'users',
     'monitoring',
+    'core',
     
 ]
 

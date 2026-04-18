@@ -9,6 +9,7 @@ from .models import MonitoringTask, MonitoringReport, SystemHealth
 from .serializers import (
     MonitoringTaskSerializer, MonitoringReportSerializer, SystemHealthSerializer
 )
+from users.permissions import IsTechnician
 
 
 class DashboardSummaryView(APIView):
@@ -48,6 +49,19 @@ class DashboardSummaryView(APIView):
         avg_duration = mttr_qs['avg']
         mttr_minutes = int(avg_duration.total_seconds() / 60) if avg_duration else 0
 
+        # Compute real average latency from the last hour of readings
+        from metrics.models import MetricReading, Metric
+        avg_latency_ms = 0
+        latency_metric = Metric.objects.filter(name='latency_ms').first()
+        if latency_metric:
+            one_hour_ago = timezone.now() - timedelta(hours=1)
+            avg = (
+                MetricReading.objects
+                .filter(metric=latency_metric, timestamp__gte=one_hour_ago)
+                .aggregate(avg=Avg('value'))['avg']
+            )
+            avg_latency_ms = round(avg, 1) if avg else 0
+
         return Response({
             'total_devices':       total,
             'online_devices':      online,
@@ -58,7 +72,7 @@ class DashboardSummaryView(APIView):
             'faults_this_week':    faults_this_week,
             'avg_mttr_minutes':    mttr_minutes,
             'network_uptime_pct':  round(online / total * 100, 2) if total else 0.0,
-            'avg_latency_ms':      0,
+            'avg_latency_ms':      avg_latency_ms,
         })
 
 
@@ -94,12 +108,16 @@ class CustomerDashboardView(APIView):
 
 class MonitoringTaskListView(generics.ListCreateAPIView):
     """
-    GET  /api/monitoring/tasks/  — list all monitoring tasks
-    POST /api/monitoring/tasks/  — create a new task
+    GET  /api/monitoring/tasks/  — any authenticated user
+    POST /api/monitoring/tasks/  — technician, manager, admin only
     """
-    queryset = MonitoringTask.objects.select_related('device').order_by('name')
+    queryset         = MonitoringTask.objects.select_related('device').order_by('name')
     serializer_class = MonitoringTaskSerializer
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsTechnician()]
+        return [IsAuthenticated()]
 
 
 class MonitoringTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -114,9 +132,11 @@ class MonitoringTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 class RunMonitoringTaskView(APIView):
     """
     POST /api/monitoring/tasks/<pk>/run/
-    Manually triggers an immediate run of a monitoring task.
+    Manually triggers an immediate run of a monitoring task using real
+    SNMP polling (if the device has an SNMP community string) or ICMP
+    ping as a fallback.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsTechnician]
 
     def post(self, request, pk):
         try:
@@ -124,20 +144,75 @@ class RunMonitoringTaskView(APIView):
         except MonitoringTask.DoesNotExist:
             return Response({'error': 'Task not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Record the manual run attempt
-        task.last_run = timezone.now()
-        task.last_status = 'pending'
+        device = task.device
+        if not device:
+            return Response({'error': 'Task has no associated device.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Mark as running
+        task.last_run    = timezone.now()
+        task.last_status = 'running'
         task.save(update_fields=['last_run', 'last_status'])
 
-        MonitoringReport.objects.create(
+        collected = 0
+        run_status = 'success'
+        details    = ''
+
+        try:
+            if device.snmp_community:
+                # ── SNMP poll ──────────────────────────────────────────
+                from utils.snmp_poller import poll_device, save_poll_results
+                results = poll_device(device)
+                if results:
+                    save_poll_results(device, results)
+                    collected = len(results)
+                    details   = f'SNMP poll returned {collected} metric(s): {list(results.keys())}'
+                else:
+                    run_status = 'failed'
+                    details    = 'SNMP poll returned no data. Check community string and device reachability.'
+            else:
+                # ── ICMP ping fallback ─────────────────────────────────
+                from utils.icmp_checker import ping_host, save_ping_results
+                ping_results = ping_host(str(device.ip_address))
+                save_ping_results(device, ping_results)
+                collected = 2  # latency_ms + packet_loss_pct
+                if ping_results['reachable']:
+                    details = (
+                        f'Ping OK — latency {ping_results["latency_ms"]} ms, '
+                        f'loss {ping_results["packet_loss_pct"]}%'
+                    )
+                else:
+                    run_status = 'failed'
+                    details    = f'Host {device.ip_address} is unreachable (100% packet loss).'
+
+            # Update device last_seen on success
+            if run_status == 'success':
+                device.last_seen = timezone.now()
+                device.save(update_fields=['last_seen'])
+
+        except Exception as exc:
+            run_status = 'failed'
+            details    = f'Execution error: {exc}'
+            import logging
+            logging.getLogger(__name__).warning('RunMonitoringTask error for task %s: %s', pk, exc)
+
+        task.last_status = run_status
+        task.save(update_fields=['last_status'])
+
+        report = MonitoringReport.objects.create(
             task=task,
-            status='success',
-            details='Manually triggered via API.',
-            metrics_collected=0,
+            status=run_status,
+            details=details,
+            metrics_collected=collected,
         )
 
         return Response(
-            {'message': f'Task "{task.name}" triggered successfully.'},
+            {
+                'message':    f'Task "{task.name}" executed ({run_status}).',
+                'status':     run_status,
+                'details':    details,
+                'report_id':  report.id,
+                'metrics_collected': collected,
+            },
             status=status.HTTP_200_OK,
         )
 

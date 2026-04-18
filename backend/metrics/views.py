@@ -97,6 +97,62 @@ class DeviceMetricSnapshotListView(APIView):
         return Response(snapshots)
 
 
+class DeviceMetricHistoryView(APIView):
+    """
+    GET /api/metrics/history/<device_id>/?days=7
+
+    Returns a list of flat MetricModel-compatible snapshots for a device,
+    one entry per poll interval, ordered oldest-first. Used by the device
+    detail latency trend chart.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, device_id):
+        try:
+            device = Device.objects.get(pk=device_id)
+        except Device.DoesNotExist:
+            return Response({'error': 'Device not found'}, status=404)
+
+        days    = int(request.query_params.get('days', 7))
+        cutoff  = timezone.now() - timedelta(days=days)
+        readings = (
+            MetricReading.objects
+            .filter(device=device, timestamp__gte=cutoff)
+            .select_related('metric')
+            .order_by('timestamp')
+        )
+
+        # Group readings by timestamp (rounded to minute) into snapshots
+        from collections import defaultdict
+        buckets: dict = defaultdict(dict)
+        for r in readings:
+            key = r.timestamp.replace(second=0, microsecond=0).isoformat()
+            flat = _METRIC_FIELD_MAP.get(
+                r.metric.name.lower().replace('-', '_').replace(' ', '_')
+            )
+            if flat:
+                buckets[key][flat] = r.value
+
+        snapshots = []
+        for ts, values in sorted(buckets.items()):
+            snapshots.append({
+                'id':               device.id,
+                'device_id':        device.id,
+                'latency_ms':       values.get('latency_ms'),
+                'packet_loss_pct':  values.get('packet_loss_pct'),
+                'bandwidth_in_bps': values.get('bandwidth_in_bps'),
+                'bandwidth_out_bps':values.get('bandwidth_out_bps'),
+                'cpu_usage_pct':    values.get('cpu_usage_pct'),
+                'memory_usage_pct': values.get('memory_usage_pct'),
+                'interface_errors': values.get('interface_errors'),
+                'uptime_seconds':   values.get('uptime_seconds'),
+                'poll_method':      'auto',
+                'recorded_at':      ts,
+            })
+
+        return Response(snapshots)
+
+
 class MetricListView(generics.ListCreateAPIView):
     """
     Metric Types Management
