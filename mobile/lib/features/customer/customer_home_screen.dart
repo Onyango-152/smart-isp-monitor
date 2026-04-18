@@ -16,16 +16,27 @@ class CustomerHomeProvider extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
 
-  DeviceModel?  _myDevice  = null;
-  MetricModel?  _myMetric  = null;
-  List<AlertModel> _recentAlerts = [];
+  List<DeviceModel> _myDevices    = [];
+  int               _selectedIdx  = 0;
+  MetricModel?      _myMetric     = null;
+  List<AlertModel>  _recentAlerts = [];
 
-  DeviceModel? get myDevice => _myDevice;
-  MetricModel? get myMetric => _myMetric;
-  List<AlertModel> get recentAlerts => _recentAlerts;
+  List<DeviceModel> get myDevices    => _myDevices;
+  DeviceModel?      get myDevice     => _myDevices.isNotEmpty ? _myDevices[_selectedIdx] : null;
+  int               get selectedIdx  => _selectedIdx;
+  MetricModel?      get myMetric     => _myMetric;
+  List<AlertModel>  get recentAlerts => _recentAlerts;
+
+  void selectDevice(int idx) {
+    if (idx >= 0 && idx < _myDevices.length) {
+      _selectedIdx = idx;
+      notifyListeners();
+      _loadMetricForSelected();
+    }
+  }
 
   bool get serviceIsHealthy =>
-      _myDevice?.status == 'online' &&
+      myDevice?.status == 'online' &&
       _recentAlerts.where((a) => !a.isResolved).isEmpty;
 
   String get serviceStatusLabel =>
@@ -35,30 +46,36 @@ class CustomerHomeProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      // Use customer-specific endpoints
       final results = await Future.wait([
         ApiClient.getMyDevices(),
         ApiClient.getMyAlerts(),
       ]);
-      final devices = results[0] as List<DeviceModel>;
+      _myDevices    = results[0] as List<DeviceModel>;
       final alerts  = results[1] as List<AlertModel>;
 
-      _myDevice = devices.isNotEmpty ? devices.first : null;
+      if (_selectedIdx >= _myDevices.length) _selectedIdx = 0;
 
-      if (_myDevice != null) {
-        final metrics = await ApiClient.getMetrics(deviceId: _myDevice!.id);
-        final sorted  = metrics..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
-        _myMetric = sorted.isNotEmpty ? sorted.first : null;
-      }
+      await _loadMetricForSelected();
 
       _recentAlerts = alerts
-          .where((a) => a.deviceId == _myDevice?.id)
+          .where((a) => a.deviceId == myDevice?.id)
           .take(5)
           .toList();
     } catch (_) {
-      // Keep stale data; UI shows last known state
+      // Keep stale data
     }
     _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> _loadMetricForSelected() async {
+    final device = myDevice;
+    if (device == null) return;
+    try {
+      final metrics = await ApiClient.getMetrics(deviceId: device.id);
+      final sorted  = metrics..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
+      _myMetric = sorted.isNotEmpty ? sorted.first : null;
+    } catch (_) {}
     notifyListeners();
   }
 
@@ -128,6 +145,10 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
                     children: [
                       _buildStatusCard(provider),
                       const SizedBox(height: 16),
+                      if (provider.myDevices.length > 1)
+                        _buildDeviceSelector(provider),
+                      if (provider.myDevices.length > 1)
+                        const SizedBox(height: 16),
                       _buildServiceSummary(provider),
                       const SizedBox(height: 16),
                       _buildKpiRow(provider),
@@ -146,6 +167,43 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
   }
 
   // ── Status Card ───────────────────────────────────────────────────────────
+
+  Widget _buildDeviceSelector(CustomerHomeProvider provider) {
+    return SizedBox(
+      height: 40,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: provider.myDevices.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final device   = provider.myDevices[i];
+          final selected = i == provider.selectedIdx;
+          return GestureDetector(
+            onTap: () => provider.selectDevice(i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primary : AppColors.surfaceOf(context),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selected ? AppColors.primary : AppColors.dividerOf(context),
+                ),
+              ),
+              child: Text(
+                device.name,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : AppColors.textPrimaryOf(context),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   Widget _buildStatusCard(CustomerHomeProvider provider) {
     final healthy  = provider.serviceIsHealthy;
@@ -522,42 +580,69 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
 
   void _showReportDialog(BuildContext context) {
     final TextEditingController reportController = TextEditingController();
+    bool _submitting = false;
 
     showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title:   const Text('Report an Issue'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Describe what is happening with your connection:'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reportController,
-              maxLines:   4,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Internet is slow, cannot connect, router is offline...',
-                border:   OutlineInputBorder(),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title:   const Text('Report an Issue'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Describe what is happening with your connection:'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reportController,
+                maxLines:   4,
+                decoration: const InputDecoration(
+                  hintText: 'e.g. Internet is slow, cannot connect...',
+                  border:   OutlineInputBorder(),
+                ),
               ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: _submitting
+                  ? null
+                  : () async {
+                      final text = reportController.text.trim();
+                      if (text.isEmpty) return;
+                      setDialogState(() => _submitting = true);
+                      try {
+                        await ApiClient.reportIssue(text);
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
+                        if (context.mounted) {
+                          AppUtils.showSnackbar(
+                            context,
+                            'Issue reported. A technician will follow up shortly.',
+                          );
+                        }
+                      } catch (_) {
+                        setDialogState(() => _submitting = false);
+                        if (context.mounted) {
+                          AppUtils.showSnackbar(
+                            context,
+                            'Failed to submit. Please try again.',
+                            isError: true,
+                          );
+                        }
+                      }
+                    },
+              child: _submitting
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Submit'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child:     const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              AppUtils.showSnackbar(
-                context,
-                'Issue reported. A technician will follow up shortly.',
-              );
-            },
-            child: const Text('Submit'),
-          ),
-        ],
       ),
     ).whenComplete(reportController.dispose);
   }

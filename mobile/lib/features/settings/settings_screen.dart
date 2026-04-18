@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/theme_provider.dart';
@@ -11,6 +12,13 @@ import '../auth/auth_provider.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SettingsProvider extends ChangeNotifier {
+  static const _kPushAlerts       = 'pref_push_alerts';
+  static const _kPushCriticalOnly = 'pref_push_critical_only';
+  static const _kPushSystem       = 'pref_push_system';
+  static const _kCompactList      = 'pref_compact_list';
+  static const _kRefreshInterval  = 'pref_refresh_interval';
+  static const _kAutoAcknowledge  = 'pref_auto_acknowledge';
+
   bool _pushAlerts       = true;
   bool _pushCriticalOnly = false;
   bool _pushSystem       = true;
@@ -25,6 +33,33 @@ class SettingsProvider extends ChangeNotifier {
   int  get refreshInterval  => _refreshInterval;
   bool get autoAcknowledge  => _autoAcknowledge;
 
+  SettingsProvider() {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    _pushAlerts       = prefs.getBool(_kPushAlerts)       ?? true;
+    _pushCriticalOnly = prefs.getBool(_kPushCriticalOnly) ?? false;
+    _pushSystem       = prefs.getBool(_kPushSystem)       ?? true;
+    _compactList      = prefs.getBool(_kCompactList)      ?? false;
+    _refreshInterval  = prefs.getInt(_kRefreshInterval)   ?? 30;
+    _autoAcknowledge  = prefs.getBool(_kAutoAcknowledge)  ?? false;
+    notifyListeners();
+  }
+
+  Future<void> _save() async {
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.setBool(_kPushAlerts,       _pushAlerts),
+      prefs.setBool(_kPushCriticalOnly, _pushCriticalOnly),
+      prefs.setBool(_kPushSystem,       _pushSystem),
+      prefs.setBool(_kCompactList,      _compactList),
+      prefs.setInt(_kRefreshInterval,   _refreshInterval),
+      prefs.setBool(_kAutoAcknowledge,  _autoAcknowledge),
+    ]);
+  }
+
   void toggle(String key) {
     switch (key) {
       case 'pushAlerts':
@@ -38,11 +73,13 @@ class SettingsProvider extends ChangeNotifier {
       case 'compactList':      _compactList      = !_compactList;      break;
       case 'autoAcknowledge':  _autoAcknowledge  = !_autoAcknowledge;  break;
     }
+    _save();
     notifyListeners();
   }
 
   void setRefreshInterval(int s) {
     _refreshInterval = s;
+    _save();
     notifyListeners();
   }
 }

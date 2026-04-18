@@ -90,26 +90,29 @@ class DeviceDetailProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Fetch metrics and alerts in parallel
       final results = await Future.wait([
         ApiClient.getMetrics(deviceId: device.id),
         ApiClient.getAlerts(),
+        ApiClient.getMetricHistory(device.id),
+        ApiClient.getDeviceReports(device.id),
       ]);
 
-      final allMetrics = results[0] as List<MetricModel>;
-      final allAlerts  = results[1] as List<AlertModel>;
+      final allMetrics    = results[0] as List<MetricModel>;
+      final allAlerts     = results[1] as List<AlertModel>;
+      final historyList   = results[2] as List<MetricModel>;
+      final reports       = results[3] as List<Map<String, dynamic>>;
 
-      // Latest snapshot — most recently recorded metric for this device
+      // Latest snapshot
       final deviceMetrics = allMetrics
           .where((m) => m.deviceId == device.id)
           .toList()
           ..sort((a, b) => b.recordedAt.compareTo(a.recordedAt));
-      _latestMetric   = deviceMetrics.isNotEmpty ? deviceMetrics.first : null;
-      _metricsHistory = deviceMetrics.length > 7
-          ? deviceMetrics.sublist(0, 7)
-          : deviceMetrics.isNotEmpty
-              ? deviceMetrics
-              : _generateMetricHistory();
+      _latestMetric = deviceMetrics.isNotEmpty ? deviceMetrics.first : null;
+
+      // Use real history if available, otherwise generate fallback
+      _metricsHistory = historyList.isNotEmpty
+          ? historyList
+          : _generateMetricHistory();
 
       // Alerts for this device only, newest first
       _deviceAlerts = allAlerts
@@ -117,12 +120,59 @@ class DeviceDetailProvider extends ChangeNotifier {
           .toList()
           ..sort((a, b) => b.triggeredAt.compareTo(a.triggeredAt));
 
+      // Convert monitoring reports to diagnostic snapshots
+      _diagnosticHistory.clear();
+      for (final report in reports.take(5)) {
+        final snapshot = _reportToSnapshot(report);
+        if (snapshot != null) {
+          _diagnosticHistory.add(snapshot);
+        }
+      }
+
     } catch (e) {
       _errorMessage = 'Failed to load device data. Please try again.';
     }
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  /// Convert a monitoring report JSON to a DiagnosticSnapshot.
+  DiagnosticSnapshot? _reportToSnapshot(Map<String, dynamic> report) {
+    try {
+      final status = report['status'] as String?;
+      final executedAt = report['executed_at'] as String?;
+      final details = report['details'] as String? ?? '';
+      
+      if (executedAt == null) return null;
+
+      // Parse latency and packet loss from details string
+      // Example: "Ping OK — latency 12.3 ms, loss 0.0%"
+      final latencyMatch = RegExp(r'latency\s+([\d.]+)\s*ms').firstMatch(details);
+      final lossMatch = RegExp(r'loss\s+([\d.]+)\s*%').firstMatch(details);
+      
+      final latency = latencyMatch != null 
+          ? double.tryParse(latencyMatch.group(1)!) 
+          : null;
+      final loss = lossMatch != null 
+          ? double.tryParse(lossMatch.group(1)!) ?? 100.0
+          : 100.0;
+
+      final passed = status == 'success' && (loss <= 5.0);
+
+      return DiagnosticSnapshot(
+        timestamp: DateTime.parse(executedAt),
+        passed: passed,
+        avgLatency: latency,
+        minLatency: latency,
+        maxLatency: latency,
+        packetLossPct: loss,
+        totalPings: 4,
+        successPings: ((4 * (100 - loss) / 100).round()),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> refresh() => loadDeviceData();

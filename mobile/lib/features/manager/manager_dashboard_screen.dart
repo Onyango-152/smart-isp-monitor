@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/utils.dart';
 import '../../data/models/alert_model.dart';
@@ -9,8 +10,7 @@ import '../../data/models/device_model.dart';
 import '../../data/models/metric_model.dart';
 import '../../features/auth/auth_provider.dart';
 import '../../services/api_client.dart';
-import 'device_management_screen.dart';
-import '../alerts/alerts_screen.dart';
+import 'manager_shell.dart';
 
 class ManagerDashboardProvider extends ChangeNotifier {
   bool _isLoading = false;
@@ -177,11 +177,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 tooltip: 'Devices',
                 onPressed: () {
                   AppUtils.haptic();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const DeviceManagementScreen(),
-                    ),
-                  );
+                  ManagerShell.switchTab(context, 1); // Clients tab
                 },
               ),
               IconButton(
@@ -190,11 +186,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 tooltip: 'Alerts',
                 onPressed: () {
                   AppUtils.haptic();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const AlertsScreen(),
-                    ),
-                  );
+                  Navigator.of(context)
+                      .pushNamed(AppConstants.alertRoute);
                 },
               ),
               IconButton(
@@ -206,7 +199,28 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
           ),
           body: provider.isLoading
               ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
+              : provider.devices.isEmpty && provider.alerts.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_off_rounded,
+                              size: 48, color: AppColors.textHint),
+                          const SizedBox(height: 12),
+                          const Text('Could not load dashboard',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary)),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: provider.refresh,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
                   onRefresh: provider.refresh,
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),

@@ -274,6 +274,12 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
         // KPI row
         SliverToBoxAdapter(child: _buildSummaryRow(dashboard)),
 
+        // ── MTTR / Uptime / Alert Velocity ───────────────────────────
+        SliverToBoxAdapter(child: _buildMetricStrip(dashboard)),
+
+        // ── Weekly Faults Chart ───────────────────────────────────────
+        SliverToBoxAdapter(child: _buildWeeklyChart(dashboard)),
+
         // ── Needs Attention — priority queue ─────────────────────────
         SliverToBoxAdapter(
           child: SectionHeader(

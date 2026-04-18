@@ -282,6 +282,80 @@ class ApiClient {
     }
   }
 
+  /// Customer self-reports a service issue.
+  static Future<void> reportIssue(String description) async {
+    try {
+      await _dio.post(
+        AppConstants.reportIssueEndpoint,
+        data: {'description': description},
+      );
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  // ── Monitoring reports ───────────────────────────────────────────────────
+
+  /// Returns monitoring reports, optionally filtered by task ID.
+  static Future<List<Map<String, dynamic>>> getMonitoringReports(
+      {int? taskId}) async {
+    try {
+      final res = await _dio.get(
+        '${AppConstants.tasksEndpoint.replaceFirst('tasks/', '')}reports/',
+        queryParameters: taskId != null ? {'task': taskId} : null,
+      );
+      return _asList(res.data)
+          .map((j) => j as Map<String, dynamic>)
+          .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  /// Returns monitoring reports for a specific device by looking up tasks
+  /// associated with that device, then fetching their reports.
+  static Future<List<Map<String, dynamic>>> getDeviceReports(
+      int deviceId) async {
+    try {
+      // Get all tasks for this device
+      final tasksRes = await _dio.get(
+        AppConstants.tasksEndpoint,
+        queryParameters: {'device': deviceId},
+      );
+      final tasks = _asList(tasksRes.data);
+      if (tasks.isEmpty) return [];
+
+      // Fetch reports for each task and flatten
+      final allReports = <Map<String, dynamic>>[];
+      for (final task in tasks) {
+        final taskId = task['id'] as int?;
+        if (taskId == null) continue;
+        try {
+          final reportsRes = await _dio.get(
+            '${AppConstants.tasksEndpoint.replaceFirst('tasks/', '')}reports/',
+            queryParameters: {'task': taskId},
+          );
+          allReports.addAll(
+            _asList(reportsRes.data).map((j) => j as Map<String, dynamic>),
+          );
+        } catch (_) {
+          // Skip failed task report fetches
+        }
+      }
+
+      // Sort newest first
+      allReports.sort((a, b) {
+        final aTime = a['executed_at'] as String? ?? '';
+        final bTime = b['executed_at'] as String? ?? '';
+        return bTime.compareTo(aTime);
+      });
+
+      return allReports;
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
   // ── Metrics ──────────────────────────────────────────────────────────────
 
   static Future<List<MetricModel>> getMetrics({int? deviceId}) async {
@@ -289,6 +363,22 @@ class ApiClient {
       final res = await _dio.get(
         AppConstants.metricsEndpoint,
         queryParameters: deviceId != null ? {'device': deviceId} : null,
+      );
+      return _asList(res.data)
+          .map((j) => MetricModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  /// Returns ordered metric history snapshots for the device detail chart.
+  static Future<List<MetricModel>> getMetricHistory(int deviceId,
+      {int days = 7}) async {
+    try {
+      final res = await _dio.get(
+        '${AppConstants.metricsEndpoint}history/$deviceId/',
+        queryParameters: {'days': days},
       );
       return _asList(res.data)
           .map((j) => MetricModel.fromJson(j as Map<String, dynamic>))
@@ -329,6 +419,15 @@ class ApiClient {
   static Future<Map<String, dynamic>> getDashboardSummary() async {
     try {
       final res = await _dio.get(AppConstants.dashboardEndpoint);
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> getCustomerDashboard() async {
+    try {
+      final res = await _dio.get(AppConstants.customerDashboardEndpoint);
       return res.data as Map<String, dynamic>;
     } on DioException catch (e) {
       _handleDioError(e);
