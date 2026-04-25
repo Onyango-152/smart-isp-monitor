@@ -115,7 +115,9 @@ class ReportsProvider extends ChangeNotifier {
 
   Future<void> load() async {
     _isLoading = true;
+    if (!hasListeners) return; // Don't proceed if already disposed
     notifyListeners();
+    
     try {
       final results = await Future.wait<dynamic>([
         ApiClient.getDevices(),
@@ -128,7 +130,9 @@ class ReportsProvider extends ChangeNotifier {
     } catch (_) {
       // keep whatever was previously loaded
     }
+    
     _isLoading = false;
+    if (!hasListeners) return; // Don't notify if disposed
     notifyListeners();
   }
 }

@@ -6,7 +6,7 @@ import '../notifications/notifications_screen.dart';
 import '../settings/settings_screen.dart';
 import 'customer_home_screen.dart';
 import 'fault_history_screen.dart';
-import 'help_assistant_screen.dart';
+import '../ai_assistant/ai_assistant_screen.dart';
 
 /// CustomerShell — main navigation container for customer users.
 ///
@@ -55,7 +55,7 @@ class _CustomerShellState extends State<CustomerShell> {
             children: const [
               CustomerHomeScreen(),   // 0 — My Service
               FaultHistoryScreen(),   // 1 — History
-              HelpAssistantScreen(),  // 2 — Help
+              AIAssistantScreen(),    // 2 — Help
               NotificationsScreen(),  // 3 — Alerts
               SettingsScreen(),       // 4 — Settings
             ],

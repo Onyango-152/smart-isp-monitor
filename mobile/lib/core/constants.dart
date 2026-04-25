@@ -36,6 +36,9 @@ class AppConstants {
   static const String dashboardEndpoint       = '/dashboard/summary/';
   static const String customerDashboardEndpoint = '/dashboard/customer/';
   static const String reportsExportEndpoint   = '/monitoring/export/';
+  static const String organisationsEndpoint   = '/organisations/';
+  static const String aiStatusEndpoint        = '/ai/status/';
+  static const String aiConversationsEndpoint = '/ai/conversations/';
 
   // ── Local Storage Keys ───────────────────────────────────────────────────
   static const String tokenKey        = 'access_token';
@@ -63,7 +66,8 @@ class AppConstants {
   static const String taskFormRoute        = '/task-form';
   static const String clientFormRoute      = '/client-form';
   static const String notificationsRoute   = '/notifications';
-  static const String settingsRoute       = '/settings';
+  static const String settingsRoute        = '/settings';
+  static const String orgMembersRoute      = '/org-members';
 
   // ── User Roles ───────────────────────────────────────────────────────────
   static const String roleAdmin      = 'admin';

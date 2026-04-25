@@ -6,6 +6,7 @@ import '../../core/utils.dart';
 import '../../core/constants.dart';
 import '../../data/models/alert_model.dart';
 import '../../data/models/task_model.dart';
+import '../../data/models/organisation_model.dart';
 import '../../services/api_client.dart';
 import '../auth/auth_provider.dart';
 import '../alerts/alerts_provider.dart';
@@ -106,14 +107,22 @@ class _ManagerSettingsContent extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 48),
         children: [
-          // ── Profile ────────────────────────────────────────────────────
-          _buildProfileCard(context, user),
+          // ── Hero ───────────────────────────────────────────────────────
+          _buildHero(context, user),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 28),
 
           // ── Business Operations ────────────────────────────────────────
-          const _SectionHeader('Business Operations'),
-          _buildCard([
+          _buildCard('Business Operations', [
+            _Tile(
+              icon: Icons.group_rounded,
+              iconColor: AppColors.primary,
+              title: 'Team Management',
+              subtitle: 'Invite & manage org members',
+              trailing: const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textSecondary),
+              onTap: () => _openTeamManagement(context),
+            ),
             _Tile(
               icon: Icons.credit_card_rounded,
               iconColor: AppColors.primaryDark,
@@ -130,15 +139,15 @@ class _ManagerSettingsContent extends StatelessWidget {
               subtitle: 'Export a full network & SLA report',
               trailing: const Icon(Icons.chevron_right_rounded,
                   color: AppColors.textSecondary),
+              isLast: true,
               onTap: () => _generateReport(context),
             ),
           ]),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
 
           // ── Technician Oversight ───────────────────────────────────────
-          const _SectionHeader('Technician Oversight'),
-          _buildCard([
+          _buildCard('Technician Oversight', [
             _Tile(
               icon: Icons.engineering_rounded,
               iconColor: AppColors.primary,
@@ -175,11 +184,10 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
           ]),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
 
           // ── Customer Issues ────────────────────────────────────────────
-          const _SectionHeader('Customer Issues'),
-          _buildCard([
+          _buildCard('Customer Issues', [
             _Tile(
               icon: Icons.support_agent_rounded,
               iconColor: AppColors.primaryDark,
@@ -216,11 +224,10 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
           ]),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
 
           // ── Network SLA Targets ────────────────────────────────────────
-          const _SectionHeader('Network SLA Targets'),
-          _buildCard([
+          _buildCard('Network SLA Targets', [
             _Tile(
               icon: Icons.bar_chart_rounded,
               iconColor: AppColors.primary,
@@ -250,11 +257,10 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
           ]),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
 
           // ── Notifications ──────────────────────────────────────────────
-          const _SectionHeader('Notifications'),
-          _buildCard([
+          _buildCard('Notifications', [
             _Tile(
               icon: Icons.crisis_alert_rounded,
               iconColor: AppColors.primaryDark,
@@ -290,9 +296,10 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.calendar_today_rounded,
-              iconColor: AppColors.primarySurface,
+              iconColor: AppColors.primaryLight,
               title: 'Weekly Performance Report',
               subtitle: 'Friday summary: uptime, MTTR, SLA compliance',
+              isLast: true,
               trailing: Switch(
                 value: settings.weeklyReport,
                 onChanged: (_) => settings.toggle('weeklyReport'),
@@ -301,11 +308,10 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
           ]),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
 
           // ── System ─────────────────────────────────────────────────────
-          const _SectionHeader('System'),
-          _buildCard([
+          _buildCard('System', [
             _Tile(
               icon: Icons.info_outline_rounded,
               iconColor: AppColors.textSecondary,
@@ -322,87 +328,80 @@ class _ManagerSettingsContent extends StatelessWidget {
             ),
             _Tile(
               icon: Icons.logout_rounded,
-              iconColor: AppColors.primaryDark,
+              iconColor: AppColors.offline,
               title: 'Sign Out',
               subtitle: 'Log out of the manager portal',
               isLast: true,
               onTap: () => _confirmSignOut(context),
             ),
           ]),
+
+          const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  // ── Profile card ──────────────────────────────────────────────────────────
+  // ── Hero (cardless, centered) ─────────────────────────────────────────────
 
-  Widget _buildProfileCard(BuildContext context, dynamic user) {
-    final name  = user?.username ?? 'Manager';
-    final email = user?.email    ?? '';
+  Widget _buildHero(BuildContext context, dynamic user) {
+    final name    = user?.username ?? 'Manager';
+    final email   = user?.email    ?? '';
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'M';
 
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end:   Alignment.bottomRight,
-          colors: [AppColors.appBarGradientStart, AppColors.appBarGradientEnd],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: AppColors.primaryDark.withOpacity(0.25),
-              blurRadius: 12, offset: const Offset(0, 4))
-        ],
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
+      child: Column(
         children: [
           // Avatar
+          CircleAvatar(
+            radius: 40,
+            backgroundColor: AppColors.primarySurface,
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color:      AppColors.primary,
+                fontWeight: FontWeight.bold,
+                fontSize:   32,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Name
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize:   22,
+              fontWeight: FontWeight.w700,
+              color:      AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Email
+          if (email.isNotEmpty)
+            Text(
+              email,
+              style: const TextStyle(
+                fontSize: 13,
+                color:    AppColors.textSecondary,
+              ),
+            ),
+          const SizedBox(height: 10),
+          // Role badge
           Container(
-            width: 56, height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
+              color:        AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: Center(
-              child: Text(initial,
-                  style: const TextStyle(color: Colors.white,
-                      fontWeight: FontWeight.bold, fontSize: 24)),
+            child: const Text(
+              'Manager',
+              style: TextStyle(
+                color:      AppColors.primary,
+                fontSize:   12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name,
-                    style: const TextStyle(color: Colors.white,
-                        fontWeight: FontWeight.bold, fontSize: 18)),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color:        Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text('Manager',
-                      style: TextStyle(color: Colors.white,
-                          fontSize: 11, fontWeight: FontWeight.w600)),
-                ),
-                if (email.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(email,
-                      style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                ],
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit_rounded, color: Colors.white70),
-            tooltip: 'Edit profile',
-            onPressed: () => AppUtils.showSnackbar(
-                context, 'Profile editing coming soon'),
           ),
         ],
       ),
@@ -410,6 +409,89 @@ class _ManagerSettingsContent extends StatelessWidget {
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
+
+  void _openTeamManagement(BuildContext context) async {
+    // Load orgs, then navigate — if only one org go straight in
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final orgs = await ApiClient.getMyOrganisations();
+      if (!context.mounted) return;
+      Navigator.pop(context); // close loader
+
+      if (orgs.isEmpty) {
+        AppUtils.showSnackbar(
+            context, 'No organisations found. Create one first.',
+            isError: true);
+        return;
+      }
+      if (orgs.length == 1) {
+        Navigator.pushNamed(
+          context,
+          AppConstants.orgMembersRoute,
+          arguments: {'orgId': orgs.first.id, 'orgName': orgs.first.name},
+        );
+        return;
+      }
+      // Multiple orgs — show picker
+      _showOrgPicker(context, orgs);
+    } catch (_) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        AppUtils.showSnackbar(context, 'Failed to load organisations.',
+            isError: true);
+      }
+    }
+  }
+
+  void _showOrgPicker(BuildContext context, List<OrganisationModel> orgs) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Select Organisation', style: AppTextStyles.heading1),
+            const SizedBox(height: 12),
+            ...orgs.map((org) => ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: AppColors.primarySurface,
+                child: Icon(Icons.business_rounded, color: AppColors.primary),
+              ),
+              title: Text(org.name, style: AppTextStyles.heading3),
+              subtitle: Text('${org.membersCount} members',
+                  style: AppTextStyles.caption),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(
+                  context,
+                  AppConstants.orgMembersRoute,
+                  arguments: {'orgId': org.id, 'orgName': org.name},
+                );
+              },
+            )),
+          ],
+        ),
+      ),
+    );
+  }
 
   void _openBillingSystem(BuildContext context) {
     const billingUrl = 'https://centrika.net';
@@ -782,18 +864,36 @@ class _ManagerSettingsContent extends StatelessWidget {
 
   // ── Shared card builder ───────────────────────────────────────────────────
 
-  static Widget _buildCard(List<Widget> tiles) {
+  static Widget _buildCard(String title, List<Widget> tiles) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
       decoration: BoxDecoration(
         color:        AppColors.surface,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05),
-              blurRadius: 6, offset: const Offset(0, 2))
-        ],
       ),
-      child: Column(children: tiles),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Category title inside the card
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+              child: Text(
+                title.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.1,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            const Divider(height: 8),
+            ...tiles,
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1067,18 +1167,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-      child: Text(
-        text.toUpperCase(),
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.1,
-          color: AppColors.textSecondaryOf(context),
-        ),
-      ),
-    );
+    return const SizedBox.shrink(); // replaced by in-card headers
   }
 }
 
@@ -1103,49 +1192,58 @@ class _Tile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final topRadius    = BorderRadius.zero;
+    final bottomRadius = isLast
+        ? const BorderRadius.vertical(bottom: Radius.circular(14))
+        : BorderRadius.zero;
+    final radius = BorderRadius.only(
+      bottomLeft:  bottomRadius.bottomLeft,
+      bottomRight: bottomRadius.bottomRight,
+    );
+
     return Column(
       children: [
-        InkWell(
-          onTap: onTap,
-          borderRadius: isLast
-              ? const BorderRadius.vertical(bottom: Radius.circular(14))
-              : BorderRadius.zero,
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-            child: Row(
-              children: [
-                Container(
-                  width: 38, height: 38,
-                  decoration: BoxDecoration(
-                    color:        iconColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: radius,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38, height: 38,
+                    decoration: BoxDecoration(
+                      color:        iconColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 20),
                   ),
-                  child: Icon(icon, color: iconColor, size: 20),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: AppColors.textPrimary)),
-                      const SizedBox(height: 2),
-                      Text(subtitle,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary)),
-                    ],
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: AppColors.textPrimary)),
+                        const SizedBox(height: 2),
+                        Text(subtitle,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary)),
+                      ],
+                    ),
                   ),
-                ),
-                if (trailing != null) ...[
-                  const SizedBox(width: 8),
-                  trailing!,
+                  if (trailing != null) ...[
+                    const SizedBox(width: 8),
+                    trailing!,
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),

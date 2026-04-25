@@ -13,6 +13,8 @@ class DeviceModel {
   final bool    isActive;
   final String? lastSeen;
   final String  createdAt;
+  final int?    organisationId;
+  final String? organisationName;
 
   const DeviceModel({
     required this.id,
@@ -28,41 +30,47 @@ class DeviceModel {
     required this.isActive,
     this.lastSeen,
     required this.createdAt,
+    this.organisationId,
+    this.organisationName,
   });
 
   factory DeviceModel.fromJson(Map<String, dynamic> json) {
     return DeviceModel(
-      id:            json['id']             as int,
-      name:          json['name']           as String,
-      ipAddress:     json['ip_address']     as String,
-      macAddress:    json['mac_address']    as String?,
-      deviceType:    json['device_type']    as String,
-      status:        json['status']         as String,
-      location:      json['location']       as String?,
-      description:   json['description']    as String?,
-      snmpEnabled:   json['snmp_enabled']   as bool,
-      snmpCommunity: json['snmp_community'] as String,
-      isActive:      json['is_active']      as bool,
-      lastSeen:      json['last_seen']      as String?,
-      createdAt:     json['created_at']     as String,
+      id:               json['id']               as int,
+      name:             json['name']             as String,
+      ipAddress:        json['ip_address']        as String,
+      macAddress:       json['mac_address']       as String?,
+      deviceType:       json['device_type']       as String,
+      status:           json['status']            as String,
+      location:         json['location']          as String?,
+      description:      json['description']       as String?,
+      snmpEnabled:      json['snmp_enabled']      as bool,
+      snmpCommunity:    json['snmp_community']    as String,
+      isActive:         json['is_active']         as bool,
+      lastSeen:         json['last_seen']         as String?,
+      createdAt:        json['created_at']        as String,
+      organisationId:   json['organisation']      as int?,
+      organisationName: json['organisation_name'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id':             id,
-      'name':           name,
-      'ip_address':     ipAddress,
-      'mac_address':    macAddress,
-      'device_type':    deviceType,
-      'status':         status,
-      'location':       location,
-      'description':    description,
-      'snmp_enabled':   snmpEnabled,
-      'snmp_community': snmpCommunity,
-      'is_active':      isActive,
-      'last_seen':      lastSeen,
-      'created_at':     createdAt,
+      'id':                id,
+      'name':              name,
+      'ip_address':        ipAddress,
+      'mac_address':       macAddress,
+      'device_type':       deviceType,
+      'status':            status,
+      'location':          location,
+      'description':       description,
+      'snmp_enabled':      snmpEnabled,
+      'snmp_community':    snmpCommunity,
+      'is_active':         isActive,
+      'last_seen':         lastSeen,
+      'created_at':        createdAt,
+      'organisation':      organisationId,
+      'organisation_name': organisationName,
     };
   }
 }

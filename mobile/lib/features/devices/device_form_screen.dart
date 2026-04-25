@@ -4,6 +4,8 @@ import '../../core/constants.dart';
 import '../../core/theme.dart';
 import '../../core/utils.dart';
 import '../../data/models/device_model.dart';
+import '../../data/models/organisation_model.dart';
+import '../../services/api_client.dart';
 import '../auth/auth_provider.dart';
 import 'device_provider.dart';
 
@@ -41,6 +43,11 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
   String? _saveError;
   bool   _readyToSave  = false;
 
+  // ── Org state ─────────────────────────────────────────────────────────────
+  List<OrganisationModel> _orgs       = [];
+  int?                    _selectedOrgId;
+  bool                    _orgsLoading = false;
+
   DeviceModel? _existingDevice;
   bool get _isEditing => _existingDevice != null;
 
@@ -60,28 +67,47 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
     _snmpCommunityCtrl.addListener(_updateReadyToSave);
 
     _updateReadyToSave();
-
+    _loadOrgs();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Populate fields when editing an existing device
     if (_existingDevice == null) {
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is DeviceModel) {
-        _existingDevice = args;
-        _nameCtrl.text          = args.name;
-        _ipCtrl.text            = args.ipAddress;
-        _macCtrl.text           = args.macAddress ?? '';
-        _locationCtrl.text      = args.location ?? '';
+        _existingDevice    = args;
+        _nameCtrl.text     = args.name;
+        _ipCtrl.text       = args.ipAddress;
+        _macCtrl.text      = args.macAddress ?? '';
+        _locationCtrl.text = args.location ?? '';
         _descriptionCtrl.text   = args.description ?? '';
         _snmpCommunityCtrl.text = args.snmpCommunity;
-        _deviceType  = args.deviceType;
-        _snmpEnabled = args.snmpEnabled;
-        _isActive    = args.isActive;
+        _deviceType    = args.deviceType;
+        _snmpEnabled   = args.snmpEnabled;
+        _isActive      = args.isActive;
+        _selectedOrgId = args.organisationId;
         _updateReadyToSave();
       }
+    }
+  }
+
+  Future<void> _loadOrgs() async {
+    setState(() => _orgsLoading = true);
+    try {
+      final orgs = await ApiClient.getMyOrganisations();
+      if (mounted) {
+        setState(() {
+          _orgs = orgs;
+          if (_selectedOrgId == null && orgs.length == 1) {
+            _selectedOrgId = orgs.first.id;
+          }
+          _orgsLoading = false;
+        });
+        _updateReadyToSave();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _orgsLoading = false);
     }
   }
 
@@ -103,12 +129,11 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
 
   void _updateReadyToSave() {
     final hasName = _nameCtrl.text.trim().isNotEmpty;
-    final hasIp = _ipCtrl.text.trim().isNotEmpty;
+    final hasIp   = _ipCtrl.text.trim().isNotEmpty;
     final hasSnmp = !_snmpEnabled || _snmpCommunityCtrl.text.trim().isNotEmpty;
-    final ready = hasName && hasIp && hasSnmp;
-    if (ready != _readyToSave) {
-      setState(() => _readyToSave = ready);
-    }
+    final hasOrg  = _isEditing || _selectedOrgId != null;
+    final ready   = hasName && hasIp && hasSnmp && hasOrg;
+    if (ready != _readyToSave) setState(() => _readyToSave = ready);
   }
 
   Future<void> _handleSave() async {
@@ -129,19 +154,17 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
         id:            _existingDevice?.id ?? provider.nextId,
         name:          _nameCtrl.text.trim(),
         ipAddress:     _ipCtrl.text.trim(),
-        macAddress:    _macCtrl.text.trim().isEmpty
-            ? null : _macCtrl.text.trim(),
+        macAddress:    _macCtrl.text.trim().isEmpty ? null : _macCtrl.text.trim(),
         deviceType:    _deviceType,
         status:        _existingDevice?.status ?? AppConstants.statusUnknown,
-        location:      _locationCtrl.text.trim().isEmpty
-            ? null : _locationCtrl.text.trim(),
-        description:   _descriptionCtrl.text.trim().isEmpty
-            ? null : _descriptionCtrl.text.trim(),
+        location:      _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim(),
+        description:   _descriptionCtrl.text.trim().isEmpty ? null : _descriptionCtrl.text.trim(),
         snmpEnabled:   _snmpEnabled,
         snmpCommunity: _snmpCommunityCtrl.text.trim(),
         isActive:      _isActive,
         lastSeen:      _existingDevice?.lastSeen,
         createdAt:     _existingDevice?.createdAt ?? now,
+        organisationId: _selectedOrgId ?? _existingDevice?.organisationId,
       );
 
       final success = _isEditing
@@ -266,6 +289,58 @@ class _DeviceFormScreenState extends State<DeviceFormScreen> {
       title: 'Basic Information',
       icon:  Icons.info_outline_rounded,
       children: [
+        // Organisation picker (only shown when adding, or if org is set)
+        if (!_isEditing) ...[
+          _orgsLoading
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: LinearProgressIndicator(),
+              )
+            : _orgs.isEmpty
+              ? Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.offlineLight,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.offline.withOpacity(0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: AppColors.offline, size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'You have no organisations. Ask your manager to add you first.',
+                          style: TextStyle(fontSize: 13, color: AppColors.offline),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : DropdownButtonFormField<int>(
+                  value: _selectedOrgId,
+                  decoration: InputDecoration(
+                    labelText:  'Organisation',
+                    prefixIcon: const Icon(Icons.business_rounded, size: 20),
+                    filled:     true,
+                    fillColor:  AppColors.surfaceVariantOf(context),
+                    border:        _inputBorder(),
+                    enabledBorder: _inputBorder(),
+                    focusedBorder: _inputBorder(color: AppColors.primary),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  ),
+                  items: _orgs.map((o) => DropdownMenuItem(
+                    value: o.id,
+                    child: Text(o.name),
+                  )).toList(),
+                  onChanged: (v) {
+                    setState(() => _selectedOrgId = v);
+                    _updateReadyToSave();
+                  },
+                  validator: (v) => v == null ? 'Please select an organisation' : null,
+                ),
+          const SizedBox(height: 14),
+        ],
         // Device Name
         _buildTextField(
           controller: _nameCtrl,

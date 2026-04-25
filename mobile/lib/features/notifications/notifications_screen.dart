@@ -8,25 +8,24 @@ import '../../core/utils.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../data/dummy_data.dart';
 import '../../data/models/alert_model.dart';
+import '../../data/models/invitation_model.dart';
 import '../../services/api_client.dart';
 import '../../services/notification_service.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// NotificationItem — lightweight in-app notification model.
-// Built from DummyData.notifications on load.
-// On integration day: built from GET /api/notifications/
-// ─────────────────────────────────────────────────────────────────────────────
-
-enum NotificationType { alert, resolved, info, system }
+enum NotificationType { alert, resolved, info, system, invitation }
 
 class NotificationItem {
   final int id;
   final String title;
   final String body;
   final NotificationType type;
-  final String severity; // critical / high / medium / low / info
+  final String severity;
   final String timestamp;
   final String? deviceName;
+  // invitation-specific
+  final String? invitationToken;
+  final String? invitationOrgName;
+  final String? invitationRole;
   bool isRead;
 
   NotificationItem({
@@ -37,6 +36,9 @@ class NotificationItem {
     required this.severity,
     required this.timestamp,
     this.deviceName,
+    this.invitationToken,
+    this.invitationOrgName,
+    this.invitationRole,
     this.isRead = false,
   });
 }
@@ -74,6 +76,8 @@ class NotificationsProvider extends ChangeNotifier {
                 n.type == NotificationType.alert ||
                 n.type == NotificationType.resolved)
             .toList();
+      case 'invitations':
+        return _all.where((n) => n.type == NotificationType.invitation).toList();
       case 'system':
         return _all
             .where((n) =>
@@ -98,11 +102,22 @@ class NotificationsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final alerts = await ApiClient.getMyAlerts();
-      _all = alerts.map(_fromAlert).toList()
+      final results = await Future.wait([
+        ApiClient.getMyAlerts(),
+        ApiClient.getMyInvitations(),
+      ]);
+      final alerts      = results[0] as List<AlertModel>;
+      final invitations = results[1] as List<InvitationModel>;
+
+      final alertItems = alerts.map(_fromAlert).toList();
+      final inviteItems = invitations.map(_fromInvitation).toList();
+
+      _all = [...inviteItems, ...alertItems]
         ..sort((a, b) =>
             DateTime.parse(b.timestamp).compareTo(DateTime.parse(a.timestamp)));
+
       await _notifyNewAlerts(alerts);
+      await _notifyNewInvitations(invitations);
     } catch (e) {
       _all = DummyData.notifications.map((n) {
         final typeStr = (n['type'] as String? ?? 'info').toLowerCase();
@@ -126,7 +141,6 @@ class NotificationsProvider extends ChangeNotifier {
       }).toList()
         ..sort((a, b) =>
             DateTime.parse(b.timestamp).compareTo(DateTime.parse(a.timestamp)));
-      _errorMessage = null;
     }
 
     _isLoading = false;
@@ -158,6 +172,89 @@ class NotificationsProvider extends ChangeNotifier {
   void clearAll() {
     _all.clear();
     notifyListeners();
+  }
+
+  // ── Invitation actions ────────────────────────────────────────────────────
+
+  Future<String?> acceptInvitation(String invitationId) async {
+    try {
+      await ApiClient.acceptInvitation(invitationId);
+      // Mark as read and remove action buttons, but keep the tile
+      _markInvitationRead(invitationId);
+      notifyListeners();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Failed to accept invitation.';
+    }
+  }
+
+  Future<String?> declineInvitation(String invitationId) async {
+    try {
+      await ApiClient.declineInvitation(invitationId);
+      _markInvitationRead(invitationId);
+      notifyListeners();
+      return null;
+    } on ApiException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Failed to decline invitation.';
+    }
+  }
+
+  void _markInvitationRead(String invitationId) {
+    final idx = _all.indexWhere((n) => n.invitationToken == invitationId);
+    if (idx != -1) {
+      final n = _all[idx];
+      _all[idx] = NotificationItem(
+        id:                n.id,
+        title:             n.title,
+        body:              n.body,
+        type:              n.type,
+        severity:          n.severity,
+        timestamp:         n.timestamp,
+        deviceName:        n.deviceName,
+        invitationToken:   null, // remove action buttons
+        invitationOrgName: n.invitationOrgName,
+        invitationRole:    n.invitationRole,
+        isRead:            true,
+      );
+    }
+  }
+
+  NotificationItem _fromInvitation(InvitationModel inv) {
+    return NotificationItem(
+      id:                inv.id + 100000, // offset to avoid id clash with alerts
+      title:             'Invitation to join ${inv.orgName}',
+      body:              '${inv.invitedByUsername} invited you as ${inv.role}.',
+      type:              NotificationType.invitation,
+      severity:          'info',
+      timestamp:         inv.createdAt,
+      invitationToken:   inv.status == 'pending' ? inv.id.toString() : null,
+      invitationOrgName: inv.orgName,
+      invitationRole:    inv.role,
+      isRead:            false,
+    );
+  }
+
+  Future<void> _notifyNewInvitations(List<InvitationModel> invitations) async {
+    final prefs  = await SharedPreferences.getInstance();
+    final lastId = prefs.getInt('last_notified_invitation_id') ?? 0;
+    final pending = invitations.where((i) => i.id > lastId).toList();
+
+    int maxId = lastId;
+    for (final inv in pending) {
+      await NotificationService.showNotification(
+        id:    inv.id + 200000,
+        title: 'You\'ve been invited to ${inv.orgName}',
+        body:  '${inv.invitedByUsername} invited you as ${inv.role}. Tap Notifications to respond.',
+      );
+      if (inv.id > maxId) maxId = inv.id;
+    }
+    if (maxId != lastId) {
+      await prefs.setInt('last_notified_invitation_id', maxId);
+    }
   }
 
   NotificationItem _fromAlert(AlertModel alert) {
@@ -356,10 +453,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildFilterRow(NotificationsProvider provider) {
     const filters = [
-      ('all', 'All'),
-      ('unread', 'Unread'),
-      ('alerts', 'Alerts'),
-      ('system', 'System'),
+      ('all',         'All'),
+      ('unread',      'Unread'),
+      ('invitations', 'Invitations'),
+      ('alerts',      'Alerts'),
+      ('system',      'System'),
     ];
     return Container(
       color: Theme.of(context).colorScheme.surface,
@@ -584,6 +682,11 @@ class _NotificationTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 5),
 
+                    // Invitation action buttons
+                    if (item.type == NotificationType.invitation &&
+                        item.invitationToken != null)
+                      _InvitationActions(item: item),
+
                     // Footer: device + time
                     Row(
                       children: [
@@ -615,10 +718,11 @@ class _NotificationTile extends StatelessWidget {
     final Color fg = AppColors.primary;
     final Color bg = AppColors.primarySurface;
     final IconData icon = switch (item.type) {
-      NotificationType.alert    => Icons.warning_rounded,
-      NotificationType.resolved => Icons.check_circle_rounded,
-      NotificationType.system   => Icons.settings_rounded,
-      NotificationType.info     => Icons.info_rounded,
+      NotificationType.alert      => Icons.warning_rounded,
+      NotificationType.resolved   => Icons.check_circle_rounded,
+      NotificationType.system     => Icons.settings_rounded,
+      NotificationType.invitation => Icons.mail_outline_rounded,
+      NotificationType.info       => Icons.info_rounded,
     };
 
     return Container(
@@ -630,5 +734,92 @@ class _NotificationTile extends StatelessWidget {
       ),
       child: Icon(icon, color: fg, size: 20),
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _InvitationActions — accept / decline buttons shown on invitation tiles
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _InvitationActions extends StatefulWidget {
+  final NotificationItem item;
+  const _InvitationActions({required this.item});
+
+  @override
+  State<_InvitationActions> createState() => _InvitationActionsState();
+}
+
+class _InvitationActionsState extends State<_InvitationActions> {
+  bool _loading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Row(
+        children: [
+          _loading
+              ? const SizedBox(
+                  width: 20, height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : Row(
+                  children: [
+                    FilledButton(
+                      onPressed: () => _respond(context, accept: true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        minimumSize:     const Size(80, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        textStyle: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                      child: const Text('Accept'),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: () => _respond(context, accept: false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.offline,
+                        side: const BorderSide(color: AppColors.offline),
+                        minimumSize: const Size(80, 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        textStyle: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                      child: const Text('Decline'),
+                    ),
+                  ],
+                ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _respond(BuildContext context, {required bool accept}) async {
+    setState(() => _loading = true);
+    final provider = context.read<NotificationsProvider>();
+    final token    = widget.item.invitationToken!;
+
+    final err = accept
+        ? await provider.acceptInvitation(token)
+        : await provider.declineInvitation(token);
+
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (err != null) {
+      AppUtils.showSnackbar(context, err, isError: true);
+    } else {
+      AppUtils.showSnackbar(
+        context,
+        accept
+            ? 'You joined ${widget.item.invitationOrgName}!'
+            : 'Invitation declined.',
+      );
+    }
   }
 }

@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants.dart';
 import '../../data/models/user_model.dart';
+import '../../data/models/invitation_model.dart';
+import '../../services/api_client.dart';
 import '../../services/database_helper.dart';
+import '../../services/notification_service.dart';
 import 'auth_service.dart';
 
 /// AuthProvider owns the in-memory authentication state for the whole app.

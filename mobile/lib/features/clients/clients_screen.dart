@@ -31,6 +31,10 @@ class _ClientsScreenState extends State<ClientsScreen> {
   void initState() {
     super.initState();
     final provider = context.read<ClientsProvider>();
+    
+    // Ensure filters are reset to default
+    provider.clearFilters();
+    
     if (provider.searchQuery.isNotEmpty) {
       _searchController.text = provider.searchQuery;
     }

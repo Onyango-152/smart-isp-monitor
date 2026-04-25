@@ -75,6 +75,14 @@ class ClientsProvider extends ChangeNotifier {
   Future<void> loadClients() async {
     _isLoading    = true;
     _errorMessage = null;
+    
+    // Reset filters to default on fresh load
+    if (_allClients.isEmpty) {
+      _searchQuery  = '';
+      _statusFilter = 'all';
+      _planFilter   = 'all';
+    }
+    
     notifyListeners();
 
     // Show cached data immediately for instant UI
@@ -224,6 +232,9 @@ class ClientsProvider extends ChangeNotifier {
   // ── Private ───────────────────────────────────────────────────────────────
 
   void _applyFilters() {
+    debugPrint('[ClientsProvider] Applying filters: search="$_searchQuery", status="$_statusFilter", plan="$_planFilter"');
+    debugPrint('[ClientsProvider] Total clients before filter: ${_allClients.length}');
+    
     _filteredClients = _allClients.where((client) {
       // ── Text search ───────────────────────────────────────────────
       final q = _searchQuery;
@@ -247,6 +258,8 @@ class ClientsProvider extends ChangeNotifier {
 
       return true;
     }).toList();
+
+    debugPrint('[ClientsProvider] Filtered clients: ${_filteredClients.length}');
 
     // Sort: inactive first, then alphabetical by name
     _filteredClients.sort((a, b) {

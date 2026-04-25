@@ -13,6 +13,8 @@ import '../data/models/metric_threshold_model.dart';
 import '../data/models/metric_prediction_model.dart';
 import '../data/models/task_model.dart';
 import '../data/models/user_model.dart';
+import '../data/models/organisation_model.dart';
+import '../data/models/invitation_model.dart';
 
 /// ApiClient is the single Dio instance used for all authenticated requests.
 class ApiClient {
@@ -204,12 +206,13 @@ class ApiClient {
       final res = await _dio.post(
         AppConstants.devicesEndpoint,
         data: {
-          'name': device.name,
-          'ip_address': device.ipAddress,
-          'location': device.location,
-          'status': _normalizeStatus(device.status),
-          'snmp_community': device.snmpCommunity,
+          'name':             device.name,
+          'ip_address':       device.ipAddress,
+          'location':         device.location,
+          'status':           _normalizeStatus(device.status),
+          'snmp_community':   device.snmpCommunity,
           'device_type_name': device.deviceType,
+          if (device.organisationId != null) 'organisation': device.organisationId,
         },
       );
       return DeviceModel.fromJson(res.data as Map<String, dynamic>);
@@ -223,12 +226,13 @@ class ApiClient {
       final res = await _dio.patch(
         '${AppConstants.devicesEndpoint}${device.id}/',
         data: {
-          'name': device.name,
-          'ip_address': device.ipAddress,
-          'location': device.location,
-          'status': _normalizeStatus(device.status),
-          'snmp_community': device.snmpCommunity,
+          'name':             device.name,
+          'ip_address':       device.ipAddress,
+          'location':         device.location,
+          'status':           _normalizeStatus(device.status),
+          'snmp_community':   device.snmpCommunity,
           'device_type_name': device.deviceType,
+          if (device.organisationId != null) 'organisation': device.organisationId,
         },
       );
       return DeviceModel.fromJson(res.data as Map<String, dynamic>);
@@ -460,6 +464,161 @@ class ApiClient {
     }
   }
 
+  // ── Organisations ────────────────────────────────────────────────────────
+
+  static Future<List<OrganisationModel>> getMyOrganisations() async {
+    try {
+      final res = await _dio.get('${AppConstants.organisationsEndpoint}mine/');
+      return _asList(res.data)
+          .map((j) => OrganisationModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<OrganisationModel> createOrganisation({
+    required String name,
+    String? description,
+  }) async {
+    try {
+      final res = await _dio.post(
+        AppConstants.organisationsEndpoint,
+        data: {'name': name, if (description != null) 'description': description},
+      );
+      return OrganisationModel.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<List<MembershipModel>> getOrgMembers(int orgId) async {
+    try {
+      final res = await _dio.get(
+          '${AppConstants.organisationsEndpoint}$orgId/members/');
+      return _asList(res.data)
+          .map((j) => MembershipModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<MembershipModel> addOrgMember({
+    required int orgId,
+    required int userId,
+    required String role,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '${AppConstants.organisationsEndpoint}$orgId/members/add/',
+        data: {'user_id': userId, 'role': role},
+      );
+      return MembershipModel.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<void> removeOrgMember({
+    required int orgId,
+    required int userId,
+  }) async {
+    try {
+      await _dio.delete(
+          '${AppConstants.organisationsEndpoint}$orgId/members/$userId/');
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  // ── Invitations ──────────────────────────────────────────────────────────
+
+  static Future<List<InvitationModel>> getOrgInvitations(int orgId) async {
+    try {
+      final res = await _dio.get(
+          '${AppConstants.organisationsEndpoint}$orgId/invitations/');
+      return _asList(res.data)
+          .map((j) => InvitationModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<InvitationModel> sendInvitation({
+    required int    orgId,
+    required String email,
+    required String role,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '${AppConstants.organisationsEndpoint}$orgId/invitations/send/',
+        data: {'email': email, 'role': role},
+      );
+      return InvitationModel.fromJson(
+          res.data['invitation'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> bulkInvite({
+    required int         orgId,
+    required List<String> emails,
+    required String      role,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '${AppConstants.organisationsEndpoint}$orgId/invitations/bulk/',
+        data: {'emails': emails, 'role': role},
+      );
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<void> cancelInvitation({
+    required int orgId,
+    required int invitationId,
+  }) async {
+    try {
+      await _dio.delete(
+          '${AppConstants.organisationsEndpoint}$orgId/invitations/$invitationId/');
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<List<InvitationModel>> getMyInvitations() async {
+    try {
+      final res = await _dio.get('/invitations/');
+      return _asList(res.data)
+          .map((j) => InvitationModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> acceptInvitation(String invitationId) async {
+    try {
+      final res = await _dio.post('/invitations/$invitationId/accept/');
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<void> declineInvitation(String invitationId) async {
+    try {
+      await _dio.post('/invitations/$invitationId/decline/');
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
   // ── Reports export ───────────────────────────────────────────────────────
 
   static Future<Uint8List> exportReport({
@@ -478,6 +637,67 @@ class ApiClient {
         options: Options(responseType: ResponseType.bytes),
       );
       return Uint8List.fromList(res.data as List<int>);
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  // ── AI Assistant ─────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getAIStatus() async {
+    try {
+      final res = await _dio.get(AppConstants.aiStatusEndpoint);
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<List<dynamic>> getAIConversations() async {
+    try {
+      final res = await _dio.get(AppConstants.aiConversationsEndpoint);
+      return _asList(res.data);
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> createAIConversation({String? title}) async {
+    try {
+      final res = await _dio.post(
+        AppConstants.aiConversationsEndpoint,
+        data: {'title': title ?? 'New Conversation'},
+      );
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> getAIConversation(int id) async {
+    try {
+      final res = await _dio.get('${AppConstants.aiConversationsEndpoint}$id/');
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> sendAIMessage(int conversationId, String message) async {
+    try {
+      final res = await _dio.post(
+        '${AppConstants.aiConversationsEndpoint}$conversationId/send/',
+        data: {'message': message},
+      );
+      return res.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
+  static Future<void> deleteAIConversation(int id) async {
+    try {
+      await _dio.delete('${AppConstants.aiConversationsEndpoint}$id/');
     } on DioException catch (e) {
       _handleDioError(e);
     }

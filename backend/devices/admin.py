@@ -23,8 +23,11 @@ class DeviceAdmin(admin.ModelAdmin):
         ('Device Information', {
             'fields': ('name', 'device_type', 'ip_address', 'location')
         }),
+        ('Organization & Assignment', {
+            'fields': ('organisation', 'assigned_to')
+        }),
         ('Monitoring Configuration', {
-            'fields': ('snmp_community', 'assigned_to')
+            'fields': ('snmp_community',)
         }),
         ('Status', {
             'fields': ('status', 'last_seen')
@@ -35,8 +38,9 @@ class DeviceAdmin(admin.ModelAdmin):
         }),
     )
     readonly_fields = ('created_at', 'updated_at', 'last_seen')
-    list_display = ('name', 'device_type', 'ip_address', 'status', 'assigned_to', 'last_seen')
-    list_filter = ('status', 'device_type', 'created_at')
-    search_fields = ('name', 'ip_address', 'location')
-    ordering = ('name',)
+    list_display = ('name', 'device_type', 'ip_address', 'organisation', 'status', 'assigned_to', 'last_seen')
+    list_filter = ('status', 'device_type', 'organisation', 'created_at')
+    search_fields = ('name', 'ip_address', 'location', 'organisation__name')
+    ordering = ('organisation', 'name')
+    autocomplete_fields = ('organisation',)
 

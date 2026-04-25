@@ -28,6 +28,7 @@ import 'features/clients/client_form_screen.dart';
 import 'features/tasks/task_form_screen.dart';
 import 'features/tasks/tasks_provider.dart';
 import 'features/troubleshoot/troubleshoot_screen.dart';
+import 'features/manager/org_members_screen.dart';
 import 'services/notification_service.dart';
 
 Future<void> main() async {
@@ -133,6 +134,17 @@ class SmartISPApp extends StatelessWidget {
         );
       case AppConstants.clientFormRoute:
         return _slideRoute(settings, const ClientFormScreen());
+
+      // Org members management
+      case AppConstants.orgMembersRoute:
+        final args = settings.arguments as Map<String, dynamic>;
+        return _slideRoute(
+          settings,
+          OrgMembersScreen(
+            orgId:   args['orgId']   as int,
+            orgName: args['orgName'] as String,
+          ),
+        );
 
       // Standalone notifications route — used for push notification deep links.
       // Inside TechnicianShell the screen is already covered by the shell's

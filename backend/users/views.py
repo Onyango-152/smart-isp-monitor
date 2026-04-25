@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
+from django.utils.text import slugify
 
 from .serializers import (
     RegisterSerializer, LoginSerializer, UserProfileSerializer,
@@ -28,6 +29,39 @@ from .services import (
 User = get_user_model()
 
 
+def _ensure_manager_org(user):
+    """
+    If the user is a manager and has no organisation, create one automatically
+    named after them and add them as a manager member.
+    Safe to call multiple times — idempotent.
+    """
+    if user.role != 'manager':
+        return
+    from organisations.models import Organisation, Membership
+    if Membership.objects.filter(user=user, role='manager').exists():
+        return  # already has at least one org
+
+    # Build a unique slug
+    base_slug = slugify(user.get_full_name() or user.username or 'my-org')
+    slug = base_slug
+    counter = 1
+    while Organisation.objects.filter(slug=slug).exists():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+
+    org = Organisation.objects.create(
+        name=f"{user.get_full_name() or user.username}'s Organisation",
+        slug=slug,
+        created_by=user,
+    )
+    Membership.objects.create(
+        organisation=org,
+        user=user,
+        role='manager',
+        invited_by=user,
+    )
+
+
 class RegisterView(generics.CreateAPIView):
     """
     POST /api/users/register/
@@ -44,6 +78,11 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        # Auto-create org for managers
+        try:
+            _ensure_manager_org(user)
+        except Exception:
+            pass
         try:
             otp = issue_email_otp(user)
             send_verification_email(user, otp)
@@ -101,6 +140,12 @@ class LoginView(APIView):
                 {'error': 'Email not verified. Please verify to continue.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        # Ensure managers always have an org (covers existing accounts)
+        try:
+            _ensure_manager_org(user)
+        except Exception:
+            pass
 
         refresh = RefreshToken.for_user(user)
         return Response({

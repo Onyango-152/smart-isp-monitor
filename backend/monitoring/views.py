@@ -14,29 +14,37 @@ from .serializers import (
 class DashboardSummaryView(APIView):
     """
     GET /api/dashboard/summary/
-    Network-wide KPIs for the manager/technician dashboard.
+    Network-wide KPIs scoped to the requesting user's organisations.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from devices.models import Device
         from alerts.models import Alert
+        from organisations.models import Membership
         from django.db.models import Avg, F, ExpressionWrapper, fields as db_fields
 
-        total       = Device.objects.count()
-        online      = Device.objects.filter(status='online').count()
-        offline     = Device.objects.filter(status='offline').count()
-        unreachable = Device.objects.filter(status='unreachable').count()
+        if request.user.role == 'admin':
+            devices = Device.objects.all()
+        else:
+            org_ids = Membership.objects.filter(user=request.user).values_list('organisation_id', flat=True)
+            devices = Device.objects.filter(organisation_id__in=org_ids)
 
-        active_alerts  = Alert.objects.filter(status='new').count()
-        critical       = Alert.objects.filter(status='new', severity='critical').count()
+        device_ids  = devices.values_list('id', flat=True)
+        total       = devices.count()
+        online      = devices.filter(status='online').count()
+        offline     = devices.filter(status='offline').count()
+        unreachable = devices.filter(status='unreachable').count()
 
-        week_ago           = timezone.now() - timedelta(days=7)
-        faults_this_week   = Alert.objects.filter(triggered_at__gte=week_ago).count()
+        active_alerts = Alert.objects.filter(status='new', device_id__in=device_ids).count()
+        critical      = Alert.objects.filter(status='new', severity='critical', device_id__in=device_ids).count()
+
+        week_ago         = timezone.now() - timedelta(days=7)
+        faults_this_week = Alert.objects.filter(triggered_at__gte=week_ago, device_id__in=device_ids).count()
 
         mttr_qs = (
             Alert.objects
-            .filter(status='resolved', resolved_at__isnull=False)
+            .filter(status='resolved', resolved_at__isnull=False, device_id__in=device_ids)
             .annotate(
                 resolution_time=ExpressionWrapper(
                     F('resolved_at') - F('triggered_at'),
@@ -49,34 +57,35 @@ class DashboardSummaryView(APIView):
         mttr_minutes = int(avg_duration.total_seconds() / 60) if avg_duration else 0
 
         return Response({
-            'total_devices':       total,
-            'online_devices':      online,
-            'offline_devices':     offline,
-            'degraded_devices':    unreachable,
-            'active_alerts':       active_alerts,
-            'critical_alerts':     critical,
-            'faults_this_week':    faults_this_week,
-            'avg_mttr_minutes':    mttr_minutes,
-            'network_uptime_pct':  round(online / total * 100, 2) if total else 0.0,
-            'avg_latency_ms':      0,
+            'total_devices':      total,
+            'online_devices':     online,
+            'offline_devices':    offline,
+            'degraded_devices':   unreachable,
+            'active_alerts':      active_alerts,
+            'critical_alerts':    critical,
+            'faults_this_week':   faults_this_week,
+            'avg_mttr_minutes':   mttr_minutes,
+            'network_uptime_pct': round(online / total * 100, 2) if total else 0.0,
+            'avg_latency_ms':     0,
         })
 
 
 class CustomerDashboardView(APIView):
     """
     GET /api/dashboard/customer/
-    Simplified service-status view for the logged-in customer.
+    Simplified service-status view scoped to the customer's organisations.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from devices.models import Device
         from alerts.models import Alert
+        from organisations.models import Membership
 
-        devices    = Device.objects.filter(assigned_to=request.user)
+        org_ids    = Membership.objects.filter(user=request.user).values_list('organisation_id', flat=True)
+        devices    = Device.objects.filter(organisation_id__in=org_ids)
         device_ids = devices.values_list('id', flat=True)
-        alerts     = Alert.objects.filter(device_id__in=device_ids)
-        active     = alerts.filter(status='new')
+        active     = Alert.objects.filter(device_id__in=device_ids, status='new')
 
         return Response({
             'total_devices':   devices.count(),
@@ -85,7 +94,7 @@ class CustomerDashboardView(APIView):
             'active_alerts':   active.count(),
             'critical_alerts': active.filter(severity='critical').count(),
             'service_status':  (
-                'online'  if devices.filter(status='online').exists() else
+                'online'   if devices.filter(status='online').exists() else
                 'degraded' if devices.filter(status='unreachable').exists() else
                 'offline'
             ),
@@ -93,22 +102,33 @@ class CustomerDashboardView(APIView):
 
 
 class MonitoringTaskListView(generics.ListCreateAPIView):
-    """
-    GET  /api/monitoring/tasks/  — list all monitoring tasks
-    POST /api/monitoring/tasks/  — create a new task
-    """
-    queryset = MonitoringTask.objects.select_related('device').order_by('name')
-    serializer_class = MonitoringTaskSerializer
+    serializer_class   = MonitoringTaskSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        from devices.models import Device
+        from organisations.models import Membership
+        if self.request.user.role == 'admin':
+            device_ids = Device.objects.values_list('id', flat=True)
+        else:
+            org_ids    = Membership.objects.filter(user=self.request.user).values_list('organisation_id', flat=True)
+            device_ids = Device.objects.filter(organisation_id__in=org_ids).values_list('id', flat=True)
+        return MonitoringTask.objects.filter(device_id__in=device_ids).select_related('device').order_by('name')
 
 
 class MonitoringTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """
-    GET / PUT / PATCH / DELETE /api/monitoring/tasks/<pk>/
-    """
-    queryset = MonitoringTask.objects.select_related('device')
-    serializer_class = MonitoringTaskSerializer
+    serializer_class   = MonitoringTaskSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        from devices.models import Device
+        from organisations.models import Membership
+        if self.request.user.role == 'admin':
+            device_ids = Device.objects.values_list('id', flat=True)
+        else:
+            org_ids    = Membership.objects.filter(user=self.request.user).values_list('organisation_id', flat=True)
+            device_ids = Device.objects.filter(organisation_id__in=org_ids).values_list('id', flat=True)
+        return MonitoringTask.objects.filter(device_id__in=device_ids).select_related('device')
 
 
 class RunMonitoringTaskView(APIView):

@@ -16,4 +16,11 @@ urlpatterns = [
     path('api/alerts/',     include('alerts.urls',                         namespace='alerts')),
     path('api/monitoring/', include('monitoring.urls',                     namespace='monitoring')),
     path('api/dashboard/',  include('monitoring.dashboard_urls')),
+    path('api/organisations/', include('organisations.urls',              namespace='organisations')),
+
+    # Invitation accept/decline (token-based, user-scoped)
+    path('api/invitations/',                include('organisations.invitation_urls')),
+    
+    # AI Assistant
+    path('api/ai/', include('ai_assistant.urls')),
 ]

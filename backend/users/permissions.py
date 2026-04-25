@@ -89,3 +89,19 @@ class IsOwnerOrAdmin(BasePermission):
             request.user.is_authenticated and
             (obj == request.user or request.user.role == 'admin')
         )
+
+
+class IsOrgMember(BasePermission):
+    """
+    Request-level check: user must belong to at least one active organisation.
+    Admins bypass this check.
+    """
+    message = 'You must be a member of an organisation to perform this action.'
+
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_authenticated):
+            return False
+        if request.user.role == 'admin':
+            return True
+        from organisations.models import Membership
+        return Membership.objects.filter(user=request.user).exists()

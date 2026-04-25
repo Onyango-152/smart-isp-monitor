@@ -3,14 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme.dart';
-import '../../core/utils.dart';
 import '../../data/models/alert_model.dart';
 import '../../data/models/device_model.dart';
 import '../../data/models/metric_model.dart';
 import '../../features/auth/auth_provider.dart';
 import '../../services/api_client.dart';
-import 'device_management_screen.dart';
-import '../alerts/alerts_screen.dart';
 
 class ManagerDashboardProvider extends ChangeNotifier {
   bool _isLoading = false;
@@ -93,7 +90,9 @@ class ManagerDashboardProvider extends ChangeNotifier {
       _devices = results[0] as List<DeviceModel>;
       _alerts = results[1] as List<AlertModel>;
       _metrics = results[2] as List<MetricModel>;
-    } catch (_) {
+    } catch (e) {
+      // Log error for debugging
+      debugPrint('ManagerDashboard load error: $e');
       // Keep stale data if available.
     }
 
@@ -171,32 +170,6 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
               },
             ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.router_outlined,
-                    color: AppColors.textOnDark),
-                tooltip: 'Devices',
-                onPressed: () {
-                  AppUtils.haptic();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const DeviceManagementScreen(),
-                    ),
-                  );
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.warning_amber_rounded,
-                    color: AppColors.textOnDark),
-                tooltip: 'Alerts',
-                onPressed: () {
-                  AppUtils.haptic();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const AlertsScreen(),
-                    ),
-                  );
-                },
-              ),
               IconButton(
                 icon: const Icon(Icons.refresh, color: AppColors.textOnDark),
                 tooltip: 'Refresh',

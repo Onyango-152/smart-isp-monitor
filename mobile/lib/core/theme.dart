@@ -14,10 +14,10 @@ class AppColors {
 
   // ── Primary Brand ─────────────────────────────────────────────────────────
   static const Color primary            = Color(0xFF2563EB); // blue-600
-  static const Color primaryLight       = Color(0xFF3B82F6); // blue-500
+  static const Color primaryLight       = Color(0xFF60A5FA); // blue-400 (brighter for dark mode)
   static const Color primaryDark        = Color(0xFF1D4ED8); // blue-700
   static const Color primarySurface     = Color(0xFFEFF6FF); // blue-50  (light)
-  static const Color primaryDarkSurface = Color(0xFF1E3A5F); // navy     (dark)
+  static const Color primaryDarkSurface = Color(0xFF1E3A8A); // blue-900 (deeper blue for dark)
 
   // ── Device / Network Status ───────────────────────────────────────────────
   static const Color online        = Color(0xFF16A34A); // green-600
@@ -53,11 +53,11 @@ class AppColors {
   static const Color border         = Color(0xFFCBD5E1); // slate-300
 
   // ── Neutrals — Dark ───────────────────────────────────────────────────────
-  static const Color darkBackground     = Color(0xFF0F172A); // slate-900
-  static const Color darkSurface        = Color(0xFF1E293B); // slate-800
-  static const Color darkSurfaceVariant = Color(0xFF334155); // slate-700
-  static const Color darkDivider        = Color(0xFF334155); // slate-700
-  static const Color darkBorder         = Color(0xFF475569); // slate-600
+  static const Color darkBackground     = Color(0xFF0A0E1A); // Very dark blue-gray
+  static const Color darkSurface        = Color(0xFF151B2E); // Dark blue-gray
+  static const Color darkSurfaceVariant = Color(0xFF1F2937); // gray-800
+  static const Color darkDivider        = Color(0xFF374151); // gray-700
+  static const Color darkBorder         = Color(0xFF4B5563); // gray-600
 
   // ── Text — Light ──────────────────────────────────────────────────────────
   static const Color textPrimary   = Color(0xFF0F172A); // slate-900
@@ -66,9 +66,9 @@ class AppColors {
   static const Color textOnDark    = Color(0xFFFFFFFF);
 
   // ── Text — Dark ───────────────────────────────────────────────────────────
-  static const Color darkTextPrimary   = Color(0xFFF1F5F9); // slate-100
-  static const Color darkTextSecondary = Color(0xFF94A3B8); // slate-400
-  static const Color darkTextHint      = Color(0xFF64748B); // slate-500
+  static const Color darkTextPrimary   = Color(0xFFF9FAFB); // gray-50 (brighter)
+  static const Color darkTextSecondary = Color(0xFFD1D5DB); // gray-300 (better contrast)
+  static const Color darkTextHint      = Color(0xFF9CA3AF); // gray-400
 
   // ── App Bar Gradient stops ────────────────────────────────────────────────
   static const Color appBarGradientStart = Color(0xFF0D47A1); // blue-900
@@ -627,18 +627,18 @@ class AppTheme {
   static ThemeData get darkTheme {
     const cs = ColorScheme(
       brightness:           Brightness.dark,
-      primary:              AppColors.primaryLight,
-      onPrimary:            Colors.white,
-      primaryContainer:     AppColors.primaryDarkSurface,
-      onPrimaryContainer:   AppColors.primarySurface,
-      secondary:            AppColors.primaryLight,
-      onSecondary:          Colors.white,
-      secondaryContainer:   AppColors.primaryDarkSurface,
-      onSecondaryContainer: AppColors.primarySurface,
+      primary:              Color(0xFF60A5FA), // Brighter blue for dark mode
+      onPrimary:            Color(0xFF0A0E1A), // Dark background for contrast
+      primaryContainer:     Color(0xFF1E3A8A), // Deep blue container
+      onPrimaryContainer:   Color(0xFFDEEBFF), // Light blue text
+      secondary:            Color(0xFF60A5FA),
+      onSecondary:          Color(0xFF0A0E1A),
+      secondaryContainer:   Color(0xFF1E3A8A),
+      onSecondaryContainer: Color(0xFFDEEBFF),
       surface:              AppColors.darkSurface,
       onSurface:            AppColors.darkTextPrimary,
-      error:                Color(0xFFF87171),
-      onError:              Colors.white,
+      error:                Color(0xFFF87171), // Softer red for dark mode
+      onError:              Color(0xFF0A0E1A),
     );
 
     return ThemeData(
@@ -674,18 +674,18 @@ class AppTheme {
           AppColors.darkSurface, AppColors.darkDivider),
 
       elevatedButtonTheme:
-          _elevatedBtn(AppColors.primaryLight),
+          _elevatedBtn(const Color(0xFF60A5FA)), // Brighter blue for dark mode
       outlinedButtonTheme: _outlinedBtn(
-          AppColors.primaryLight, AppColors.primaryLight),
-      textButtonTheme: _textBtn(AppColors.primaryLight),
+          const Color(0xFF60A5FA), const Color(0xFF60A5FA)),
+      textButtonTheme: _textBtn(const Color(0xFF60A5FA)),
 
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.darkSurface,
-        indicatorColor:  AppColors.primaryDarkSurface,
+        indicatorColor:  const Color(0xFF1E3A8A), // Deep blue indicator
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return const IconThemeData(
-                color: AppColors.primaryLight, size: 24);
+                color: Color(0xFF60A5FA), size: 24); // Bright blue
           }
           return const IconThemeData(
               color: AppColors.darkTextSecondary, size: 22);
@@ -696,7 +696,7 @@ class AppTheme {
             return const TextStyle(
               fontSize:   11,
               fontWeight: FontWeight.w700,
-              color:      AppColors.primaryLight,
+              color:      Color(0xFF60A5FA), // Bright blue
             );
           }
           return const TextStyle(
@@ -716,7 +716,7 @@ class AppTheme {
 
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor:      AppColors.darkSurface,
-        selectedItemColor:    AppColors.primaryLight,
+        selectedItemColor:    Color(0xFF60A5FA), // Bright blue
         unselectedItemColor:  AppColors.darkTextSecondary,
         selectedLabelStyle:
             TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
@@ -726,27 +726,27 @@ class AppTheme {
       ),
 
       chipTheme: _chipTheme(
-          AppColors.primaryDarkSurface, AppColors.primaryLight),
+          const Color(0xFF1E3A8A), const Color(0xFF60A5FA)), // Deep blue bg, bright blue selected
 
       inputDecorationTheme: InputDecorationTheme(
         filled:    true,
-        fillColor: AppColors.darkSurfaceVariant,
+        fillColor: const Color(0xFF1F2937), // Slightly lighter than surface
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide:
-              const BorderSide(color: AppColors.darkBorder),
+              const BorderSide(color: Color(0xFF374151)), // gray-700
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide:
-              const BorderSide(color: AppColors.darkBorder),
+              const BorderSide(color: Color(0xFF374151)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(
-              color: AppColors.primaryLight, width: 2),
+              color: Color(0xFF60A5FA), width: 2), // Bright blue
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -769,7 +769,7 @@ class AppTheme {
       tabBarTheme: const TabBarThemeData(
         labelColor:           AppColors.darkTextPrimary,
         unselectedLabelColor: AppColors.darkTextSecondary,
-        indicatorColor:       AppColors.primaryLight,
+        indicatorColor:       Color(0xFF60A5FA), // Bright blue
         labelStyle:
             TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         unselectedLabelStyle:
@@ -791,13 +791,13 @@ class AppTheme {
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
-              ? AppColors.primaryLight
+              ? const Color(0xFF60A5FA) // Bright blue
               : AppColors.darkTextSecondary,
         ),
         trackColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
-              ? AppColors.primaryLight.withOpacity(0.4)
-              : AppColors.darkSurfaceVariant,
+              ? const Color(0xFF60A5FA).withOpacity(0.4)
+              : const Color(0xFF374151), // gray-700
         ),
       ),
 
@@ -836,8 +836,8 @@ class AppTheme {
 
       floatingActionButtonTheme:
           const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.primaryLight,
-        foregroundColor: Colors.white,
+        backgroundColor: Color(0xFF60A5FA), // Bright blue
+        foregroundColor: Color(0xFF0A0E1A), // Dark for contrast
         elevation:       3,
         shape: RoundedRectangleBorder(
           borderRadius:
@@ -846,8 +846,8 @@ class AppTheme {
       ),
 
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color:            AppColors.primaryLight,
-        linearTrackColor: AppColors.primaryDarkSurface,
+        color:            Color(0xFF60A5FA), // Bright blue
+        linearTrackColor: Color(0xFF1E3A8A), // Deep blue
       ),
     );
   }

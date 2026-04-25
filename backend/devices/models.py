@@ -3,6 +3,11 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
+# Avoid circular import — organisations imports nothing from devices
+def _org_model():
+    from organisations.models import Organisation
+    return Organisation
+
 class DeviceType(models.Model):
     """
     Enumeration of device types that can be monitored.
@@ -47,7 +52,19 @@ class Device(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='offline')
     last_seen = models.DateTimeField(null=True, blank=True)
     snmp_community = models.CharField(max_length=255, blank=True, null=True)
+    
+    # ── Workspace scoping ────────────────────────────────────────────────
+    organisation = models.ForeignKey(
+        'organisations.Organisation',
+        on_delete=models.CASCADE,
+        related_name='devices',
+        null=True,  # Temporarily nullable for migration
+        blank=True,
+    )
+    
+    # Legacy field — kept for backward compat, but org membership is primary
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
+import '../../services/api_client.dart';
+import '../../data/models/ai_conversation_model.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data model for a chat message
@@ -12,27 +14,12 @@ class ChatMessage {
   final String      text;
   final MessageRole role;
   final DateTime    timestamp;
-  final List<_SuggestedQuestion>? suggestions; // assistant can attach follow-ups
-  final _TroubleshootGuide? guide;             // assistant can attach a step guide
 
   ChatMessage({
     required this.text,
     required this.role,
-    this.suggestions,
-    this.guide,
-  }) : timestamp = DateTime.now();
-}
-
-class _SuggestedQuestion {
-  final String label;
-  final String query;
-  const _SuggestedQuestion(this.label, this.query);
-}
-
-class _TroubleshootGuide {
-  final String       title;
-  final List<String> steps;
-  const _TroubleshootGuide({required this.title, required this.steps});
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -42,62 +29,111 @@ class _TroubleshootGuide {
 class HelpAssistantProvider extends ChangeNotifier {
   final List<ChatMessage> _messages = [];
   bool _isTyping = false;
+  bool _isLoading = true;
+  String? _errorMessage;
+  int? _conversationId;
 
   List<ChatMessage> get messages  => List.unmodifiable(_messages);
   bool              get isTyping  => _isTyping;
+  bool              get isLoading => _isLoading;
+  String?           get errorMessage => _errorMessage;
 
   HelpAssistantProvider() {
-    // Greeting message on first load
-    _messages.add(ChatMessage(
-      role: MessageRole.assistant,
-      text: 'Hi! I\'m your ISP Help Assistant 👋\n\nI can help you troubleshoot common internet problems at home. Just ask me anything — in plain language, no technical knowledge needed.',
-      suggestions: const [
-        _SuggestedQuestion('My internet is not working', 'My internet is not working'),
-        _SuggestedQuestion('Router is blinking red', 'Why is my router blinking red?'),
-        _SuggestedQuestion('Slow internet', 'My internet is very slow'),
-        _SuggestedQuestion('Wi-Fi drops frequently', 'My Wi-Fi keeps disconnecting'),
-      ],
-    ));
+    _initializeConversation();
+  }
+
+  Future<void> _initializeConversation() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // Check if AI is configured
+      final status = await ApiClient.getAIStatus();
+      if (status['configured'] != true) {
+        _errorMessage = 'AI Assistant is not configured. Please contact support.';
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      // Create a new conversation
+      final conversation = await ApiClient.createAIConversation(
+        title: 'Help Session ${DateTime.now().toString().substring(0, 16)}'
+      );
+      _conversationId = conversation['id'] as int;
+
+      // Add greeting message
+      _messages.add(ChatMessage(
+        role: MessageRole.assistant,
+        text: 'Hi! I\'m your ISP Help Assistant 👋\n\nI can help you troubleshoot internet problems, explain your network metrics, and answer questions about your service. Just ask me anything!',
+      ));
+
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = 'Failed to initialize AI Assistant: ${e.toString()}';
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> sendMessage(String text) async {
     if (text.trim().isEmpty) return;
+    if (_conversationId == null) {
+      _errorMessage = 'No active conversation. Please restart the assistant.';
+      notifyListeners();
+      return;
+    }
 
     // Add user message
     _messages.add(ChatMessage(role: MessageRole.user, text: text.trim()));
     _isTyping = true;
+    _errorMessage = null;
     notifyListeners();
 
-    // Simulate realistic typing delay (600ms – 1.4s)
-    await Future.delayed(Duration(milliseconds: 600 + (text.length * 10).clamp(0, 800)));
-
-    // Generate response
-    final response = _generateResponse(text.trim().toLowerCase());
-    _messages.add(response);
-    _isTyping = false;
-    notifyListeners();
+    try {
+      // Send message to API and get response
+      final response = await ApiClient.sendAIMessage(_conversationId!, text.trim());
+      
+      // Extract the latest assistant message from the response
+      final messages = response['messages'] as List<dynamic>;
+      final lastMessage = messages.last as Map<String, dynamic>;
+      
+      if (lastMessage['role'] == 'assistant') {
+        _messages.add(ChatMessage(
+          role: MessageRole.assistant,
+          text: lastMessage['content'] as String,
+          timestamp: DateTime.parse(lastMessage['timestamp'] as String),
+        ));
+      }
+    } catch (e) {
+      _errorMessage = 'Failed to send message: ${e.toString()}';
+      // Add error message to chat
+      _messages.add(ChatMessage(
+        role: MessageRole.assistant,
+        text: 'Sorry, I encountered an error. Please try again or contact support if the problem persists.',
+      ));
+    } finally {
+      _isTyping = false;
+      notifyListeners();
+    }
   }
 
-  // ── Knowledge base: pattern matching → guided response ───────────────────
-
-  ChatMessage _generateResponse(String q) {
-
-    // ── Router offline / not working ─────────────────────────────────────────
-    if (_matches(q, ['router offline', 'router not working', 'router off', 'router dead',
-                     'no internet', 'internet not working', 'internet is down',
-                     'cannot connect', 'no connection', 'not connecting'])) {
-      return ChatMessage(
-        role: MessageRole.assistant,
-        text: 'That sounds like your router might be offline. Don\'t worry — this is one of the most common issues and is usually easy to fix at home.',
-        guide: const _TroubleshootGuide(
-          title: '🔌 Router Offline — Step-by-Step Fix',
-          steps: [
-            'Look at your router. Are any lights on? If there are NO lights at all, check that the power cable is firmly plugged into both the router and the wall socket.',
-            'If the router has lights but no internet, find the POWER button on the back and press it once to turn it off. Wait 30 seconds — this allows the device to fully reset.',
-            'Press the POWER button again to turn it back on. Wait 2 full minutes for it to fully restart and connect.',
-            'Try opening a website on your phone or laptop. If it works, you\'re done!',
-            'If it still doesn\'t work after 2 attempts, the issue may be on our network side. Our monitoring system will have already detected this and a technician will be in touch.',
-          ],
+  Future<void> resetConversation() async {
+    if (_conversationId != null) {
+      try {
+        await ApiClient.deleteAIConversation(_conversationId!);
+      } catch (_) {
+        // Ignore deletion errors
+      }
+    }
+    _messages.clear();
+    _conversationId = null;
+    _errorMessage = null;
+    await _initializeConversation();
+  }
+}
         ),
         suggestions: const [
           _SuggestedQuestion('Lights are on but no internet', 'Router has lights but no internet'),

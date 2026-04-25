@@ -34,9 +34,9 @@ class SettingsProvider extends ChangeNotifier {
       case 'pushCriticalOnly':
         if (_pushAlerts) _pushCriticalOnly = !_pushCriticalOnly;
         break;
-      case 'pushSystem':       _pushSystem       = !_pushSystem;       break;
-      case 'compactList':      _compactList      = !_compactList;      break;
-      case 'autoAcknowledge':  _autoAcknowledge  = !_autoAcknowledge;  break;
+      case 'pushSystem':      _pushSystem      = !_pushSystem;      break;
+      case 'compactList':     _compactList     = !_compactList;     break;
+      case 'autoAcknowledge': _autoAcknowledge = !_autoAcknowledge; break;
     }
     notifyListeners();
   }
@@ -68,17 +68,14 @@ class _SettingsContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final auth     = context.read<AuthProvider>();
-    final settings = context.watch<SettingsProvider>();
-    final theme    = context.watch<ThemeProvider>();
-    final user     = auth.currentUser;
-    final isCustomer = (user?.role == AppConstants.roleCustomer);
+    final auth       = context.read<AuthProvider>();
+    final settings   = context.watch<SettingsProvider>();
+    final theme      = context.watch<ThemeProvider>();
+    final user       = auth.currentUser;
+    final isCustomer = user?.role == AppConstants.roleCustomer;
 
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-
-
-      // ── App Bar ───────────────────────────────────────────────────────────
       appBar: AppBar(
         automaticallyImplyLeading: false,
         elevation: 0,
@@ -87,48 +84,38 @@ class _SettingsContent extends StatelessWidget {
             gradient: LinearGradient(
               begin:  Alignment.topLeft,
               end:    Alignment.bottomRight,
-              colors: [
-                AppColors.appBarGradientStart,
-                AppColors.appBarGradientEnd,
-              ],
+              colors: [AppColors.appBarGradientStart, AppColors.appBarGradientEnd],
             ),
           ),
         ),
         title: const Text('Settings',
-          style: TextStyle(color: AppColors.textOnDark)),
+            style: TextStyle(color: AppColors.textOnDark)),
       ),
-
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 40),
+        padding: const EdgeInsets.only(bottom: 48),
         children: [
 
-          // ── Profile card ───────────────────────────────────────────────
-          _buildProfileCard(
-            context: context,
-            name:  user?.username ?? 'User',
-            email: user?.email    ?? '',
-            role:  user?.role     ?? '',
-          ),
+          // ── Hero ─────────────────────────────────────────────────────
+          _buildHero(context, user),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 28),
 
-          // ── Notifications ──────────────────────────────────────────────
-          const _SectionTitle('Notifications'),
-          _buildCard(context, [
-            _SettingsTile(
+          // ── Notifications ─────────────────────────────────────────────
+          _buildCard('Notifications', [
+            _Tile(
               title:    'Push Alerts',
               subtitle: 'Receive push notifications for network alerts',
               trailing: Switch(
-                value:      settings.pushAlerts,
-                onChanged:  (_) => settings.toggle('pushAlerts'),
+                value:       settings.pushAlerts,
+                onChanged:   (_) => settings.toggle('pushAlerts'),
                 activeColor: AppColors.primary,
               ),
             ),
             if (!isCustomer)
-              _SettingsTile(
-                title:     'Critical Alerts Only',
-                subtitle:  'Only notify for critical severity alerts',
-                enabled:   settings.pushAlerts,
+              _Tile(
+                title:    'Critical Alerts Only',
+                subtitle: 'Only notify for critical severity alerts',
+                enabled:  settings.pushAlerts,
                 trailing: Switch(
                   value:     settings.pushAlerts ? settings.pushCriticalOnly : false,
                   onChanged: settings.pushAlerts
@@ -137,88 +124,84 @@ class _SettingsContent extends StatelessWidget {
                   activeColor: AppColors.primary,
                 ),
               ),
-            _SettingsTile(
-              title:     'System Notifications',
-              subtitle:  'Monitoring cycles, device changes, and system events',
-              isLast:    true,
+            _Tile(
+              title:    'System Notifications',
+              subtitle: 'Monitoring cycles, device changes, and system events',
+              isLast:   true,
               trailing: Switch(
-                value:      settings.pushSystem,
-                onChanged:  (_) => settings.toggle('pushSystem'),
+                value:       settings.pushSystem,
+                onChanged:   (_) => settings.toggle('pushSystem'),
                 activeColor: AppColors.primary,
               ),
             ),
           ]),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
 
-          // ── Display ────────────────────────────────────────────────────
-          const _SectionTitle('Display'),
-          _buildCard(context, [
-            _SettingsTile(
-              title:     'Dark Mode',
-              subtitle:  'Switch to a dark colour scheme',
+          // ── Display ───────────────────────────────────────────────────
+          _buildCard('Display', [
+            _Tile(
+              title:    'Dark Mode',
+              subtitle: 'Switch to a dark colour scheme',
               trailing: Switch(
-                // ThemeProvider is the single source of truth for dark mode.
-                // SettingsProvider no longer holds a _darkMode bool.
                 value:     theme.isDarkMode,
                 onChanged: (val) => theme.setDarkMode(val),
               ),
-              isLast: true,
+              isLast: isCustomer,
             ),
             if (!isCustomer)
-              _SettingsTile(
-                title:     'Compact Device List',
-                subtitle:  'Show smaller device rows to fit more on screen',
-                isLast:    true,
+              _Tile(
+                title:    'Compact Device List',
+                subtitle: 'Show smaller device rows to fit more on screen',
+                isLast:   true,
                 trailing: Switch(
-                  value:      settings.compactList,
-                  onChanged:  (_) => settings.toggle('compactList'),
+                  value:       settings.compactList,
+                  onChanged:   (_) => settings.toggle('compactList'),
                   activeColor: AppColors.primary,
                 ),
               ),
           ]),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
 
-          // ── Monitoring ─────────────────────────────────────────────────
-          const _SectionTitle('Monitoring'),
-          _buildCard(context, [
-            _SettingsTile(
-              title:     'Refresh Interval',
-              subtitle:  'How often the dashboard auto-refreshes',
-              trailing:  _RefreshIntervalSelector(settings: settings),
-            ),
-            _SettingsTile(
-              title:     'Auto-Acknowledge Low Alerts',
-              subtitle:  'Automatically acknowledge low-severity alerts',
-              isLast:    true,
-              trailing: Switch(
-                value:      settings.autoAcknowledge,
-                onChanged:  (_) => settings.toggle('autoAcknowledge'),
-                activeColor: AppColors.primary,
+          // ── Monitoring (non-customer only) ────────────────────────────
+          if (!isCustomer) ...[
+            _buildCard('Monitoring', [
+              _Tile(
+                title:    'Refresh Interval',
+                subtitle: 'How often the dashboard auto-refreshes',
+                trailing: _RefreshIntervalSelector(settings: settings),
               ),
-            ),
-          ]),
+              _Tile(
+                title:    'Auto-Acknowledge Low Alerts',
+                subtitle: 'Automatically acknowledge low-severity alerts',
+                isLast:   true,
+                trailing: Switch(
+                  value:       settings.autoAcknowledge,
+                  onChanged:   (_) => settings.toggle('autoAcknowledge'),
+                  activeColor: AppColors.primary,
+                ),
+              ),
+            ]),
+            const SizedBox(height: 12),
+          ],
 
-          const SizedBox(height: 4),
-
-          // ── System ─────────────────────────────────────────────────────
-          const _SectionTitle('System'),
-          _buildCard(context, [
+          // ── System ────────────────────────────────────────────────────
+          _buildCard('System', [
             if (!isCustomer)
-              _SettingsTile(
-                title:     'API Endpoint',
-                subtitle:  AppConstants.baseUrl,
-                trailing:  const SizedBox.shrink(),
+              _Tile(
+                title:    'API Endpoint',
+                subtitle: AppConstants.baseUrl,
+                trailing: const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.textSecondary),
                 onTap: () =>
                     AppUtils.showSnackbar(context, 'Endpoint config coming soon.'),
               ),
-            _SettingsTile(
-              title:     'App Version',
-              subtitle:  'ISP Monitor v${AppConstants.appVersion}',
+            _Tile(
+              title:    'App Version',
+              subtitle: 'ISP Monitor v${AppConstants.appVersion}',
               trailing: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color:        AppColors.primarySurfaceOf(context),
                   borderRadius: BorderRadius.circular(20),
@@ -228,144 +211,106 @@ class _SettingsContent extends StatelessWidget {
                         color: AppColors.primary)),
               ),
             ),
-            _SettingsTile(
-              title:     'Send Feedback',
-              subtitle:  'Report a bug or suggest a feature',
-              isLast:    true,
-              trailing:  const SizedBox.shrink(),
+            _Tile(
+              title:    'Send Feedback',
+              subtitle: 'Report a bug or suggest a feature',
+              trailing: const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textSecondary),
               onTap: () {
                 AppUtils.haptic();
-                AppUtils.showSnackbar(
-                    context, 'Feedback feature coming soon.');
+                AppUtils.showSnackbar(context, 'Feedback feature coming soon.');
               },
+            ),
+            _Tile(
+              title:    'About ISP Monitor',
+              subtitle: 'Version ${AppConstants.appVersion} — build 1',
+              trailing: const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textSecondary),
+              onTap: () => showAboutDialog(
+                context:            context,
+                applicationName:    'ISP Monitor',
+                applicationVersion: AppConstants.appVersion,
+                applicationLegalese: '© 2026 Smart ISP',
+              ),
+            ),
+            _Tile(
+              title:    'Sign Out',
+              subtitle: 'Log out of ISP Monitor',
+              isLast:   true,
+              iconColor: AppColors.offline,
+              trailing: const Icon(Icons.logout_rounded,
+                  color: AppColors.offline, size: 20),
+              onTap: () => _confirmLogout(context, auth),
             ),
           ]),
 
-          const SizedBox(height: 20),
-
-          // ── Sign Out ───────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: OutlinedButton(
-              onPressed: () {
-                AppUtils.haptic();
-                _confirmLogout(context, auth);
-              },
-              style: OutlinedButton.styleFrom(
-                minimumSize:     const Size(double.infinity, 52),
-                foregroundColor: AppColors.primary,
-                side:  const BorderSide(color: AppColors.primary),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Sign Out',
-                  style: TextStyle(
-                      fontSize:   16,
-                      fontWeight: FontWeight.w600)),
-            ),
-          ),
-
-          // ── Delete account ─────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: TextButton(
-              onPressed: () {
-                AppUtils.hapticSelect();
-                AppUtils.showSnackbar(
-                  context,
-                  'Account deletion requires contacting your administrator.',
-                );
-              },
-              child: Text('Delete Account',
-                  style: AppTextStyles.body.copyWith(
-                      color: AppColors.primary)),
-            ),
-          ),
+          const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  // ── Profile card ───────────────────────────────────────────────────────────
+  // ── Hero ──────────────────────────────────────────────────────────────────
 
-  Widget _buildProfileCard({
-    required BuildContext context,
-    required String name,
-    required String email,
-    required String role,
-  }) {
+  Widget _buildHero(BuildContext context, dynamic user) {
+    final name  = user?.username ?? 'User';
+    final email = user?.email    ?? '';
+    final role  = user?.role     ?? '';
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'U';
+
     final roleLabel = role == AppConstants.roleTechnician ? 'Technician'
         : role == AppConstants.roleManager                ? 'Manager'
         : role == AppConstants.roleCustomer               ? 'Customer'
         :                                                   'Admin';
 
-    return Container(
-      margin:  const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        // Matches the app bar gradient for visual cohesion
-        gradient: const LinearGradient(
-          colors: [
-            AppColors.appBarGradientStart,
-            AppColors.appBarGradientEnd,
-          ],
-          begin: Alignment.topLeft,
-          end:   Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: AppShadows.heroCard,
-      ),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
+      child: Column(
         children: [
-          // Avatar
-          Container(
-            width:  56, height: 56,
-            decoration: BoxDecoration(
-              color:        AppColors.textOnDark.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                  color: AppColors.textOnDark.withOpacity(0.4), width: 2),
-            ),
-            child: Center(
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                style: const TextStyle(
-                  fontSize:   24,
-                  fontWeight: FontWeight.bold,
-                  color:      AppColors.textOnDark,
-                ),
+          CircleAvatar(
+            radius:          40,
+            backgroundColor: AppColors.primarySurfaceOf(context),
+            child: Text(
+              initial,
+              style: const TextStyle(
+                color:      AppColors.primary,
+                fontWeight: FontWeight.bold,
+                fontSize:   32,
               ),
             ),
           ),
-          const SizedBox(width: 16),
-
-          // Name / email / role badge
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name,
-                    style: AppTextStyles.heading2.copyWith(
-                        color: AppColors.textOnDark)),
-                const SizedBox(height: 2),
-                Text(email,
-                    style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textOnDark.withOpacity(0.75))),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    color:        AppColors.textOnDark.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: AppColors.textOnDark.withOpacity(0.35)),
-                  ),
-                  child: Text(roleLabel,
-                      style: AppTextStyles.label.copyWith(
-                          color: AppColors.textOnDark)),
-                ),
-              ],
+          const SizedBox(height: 14),
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize:   22,
+              fontWeight: FontWeight.w700,
+              color:      AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          if (email.isNotEmpty)
+            Text(
+              email,
+              style: const TextStyle(
+                fontSize: 13,
+                color:    AppColors.textSecondary,
+              ),
+            ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            decoration: BoxDecoration(
+              color:        AppColors.primarySurfaceOf(context),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              roleLabel,
+              style: const TextStyle(
+                color:      AppColors.primary,
+                fontSize:   12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -373,44 +318,65 @@ class _SettingsContent extends StatelessWidget {
     );
   }
 
-  // ── Card wrapper ───────────────────────────────────────────────────────────
+  // ── Card builder ──────────────────────────────────────────────────────────
 
-  static Widget _buildCard(BuildContext context, List<Widget> children) {
+  static Widget _buildCard(String title, List<Widget> tiles) {
     return Container(
-      margin:     const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color:        AppColors.surfaceOf(context),
+        color:        AppColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border:       Border.all(color: AppColors.primary.withOpacity(0.12)),
-        boxShadow:    AppShadows.card,
       ),
-      child: Column(children: children),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+              child: Text(
+                title.toUpperCase(),
+                style: const TextStyle(
+                  fontSize:      11,
+                  fontWeight:    FontWeight.w700,
+                  letterSpacing: 1.1,
+                  color:         AppColors.textSecondary,
+                ),
+              ),
+            ),
+            const Divider(height: 8),
+            ...tiles,
+          ],
+        ),
+      ),
     );
   }
 
-  // ── Logout ─────────────────────────────────────────────────────────────────
+  // ── Logout ────────────────────────────────────────────────────────────────
 
   void _confirmLogout(BuildContext context, AuthProvider auth) {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title:   const Text('Sign Out'),
-        content: const Text(
-            'Are you sure you want to sign out of ISP Monitor?'),
+        content: const Text('Are you sure you want to sign out?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child:     const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () {
+          FilledButton(
+            onPressed: () async {
               Navigator.of(ctx).pop();
-              auth.logout();
-              Navigator.of(context)
-                  .pushReplacementNamed(AppConstants.loginRoute);
+              await auth.logout();
+              if (context.mounted) {
+                Navigator.of(context, rootNavigator: true)
+                    .pushNamedAndRemoveUntil(
+                  AppConstants.loginRoute, (r) => false);
+              }
             },
-            style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary),
+            style: FilledButton.styleFrom(
+                backgroundColor: AppColors.offline),
             child: const Text('Sign Out'),
           ),
         ],
@@ -420,98 +386,82 @@ class _SettingsContent extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _SectionTitle
+// _Tile — Material + InkWell for proper ripple
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  const _SectionTitle(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 16, 4),
-      child: Text(
-        title.toUpperCase(),
-        style: AppTextStyles.caption.copyWith(
-          color:         AppColors.primary,
-          fontWeight:    FontWeight.w700,
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// _SettingsTile
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SettingsTile extends StatelessWidget {
-  final String       title;
-  final String       subtitle;
-  final Widget?      trailing;
-  final bool         isLast;
-  final bool         enabled;
+class _Tile extends StatelessWidget {
+  final String        title;
+  final String        subtitle;
+  final Widget?       trailing;
+  final bool          isLast;
+  final bool          enabled;
+  final Color?        iconColor;
   final VoidCallback? onTap;
 
-  const _SettingsTile({
+  const _Tile({
     required this.title,
     required this.subtitle,
     this.trailing,
-    this.isLast  = false,
-    this.enabled = true,
+    this.isLast   = false,
+    this.enabled  = true,
+    this.iconColor,
     this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final effectiveOnTap = enabled && onTap != null
-        ? () { AppUtils.hapticSelect(); onTap!(); }
-        : null;
+    final radius = isLast
+        ? const BorderRadius.vertical(bottom: Radius.circular(14))
+        : BorderRadius.zero;
 
     return Column(
       children: [
-        InkWell(
-          onTap:        effectiveOnTap,
-          borderRadius: isLast
-              ? const BorderRadius.only(
-                  bottomLeft:  Radius.circular(14),
-                  bottomRight: Radius.circular(14))
-              : BorderRadius.zero,
-          child: Opacity(
-            opacity: enabled ? 1.0 : 0.45,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 13),
-              child: Row(
-                children: [
-                  // Title + subtitle
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title,
-                            style: AppTextStyles.body.copyWith(
-                                fontWeight: FontWeight.w500)),
-                        const SizedBox(height: 2),
-                        Text(subtitle,
-                            style: AppTextStyles.bodySmall),
-                      ],
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: enabled && onTap != null
+                ? () { AppUtils.hapticSelect(); onTap!(); }
+                : null,
+            borderRadius: radius,
+            child: Opacity(
+              opacity: enabled ? 1.0 : 0.45,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 13),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize:   14,
+                              color:      iconColor ?? AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(subtitle,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color:    AppColors.textSecondary)),
+                        ],
+                      ),
                     ),
-                  ),
-                  if (trailing != null) ...[
-                    const SizedBox(width: 8),
-                    trailing!,
+                    if (trailing != null) ...[
+                      const SizedBox(width: 8),
+                      trailing!,
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
         ),
         if (!isLast)
-          Divider(height: 1, indent: 16, endIndent: 16,
-              color: AppColors.primary.withOpacity(0.15)),
+          const Divider(height: 1, indent: 16),
       ],
     );
   }
@@ -525,8 +475,8 @@ class _RefreshIntervalSelector extends StatelessWidget {
   final SettingsProvider settings;
   const _RefreshIntervalSelector({required this.settings});
 
-  static const _values = [15,     30,     60,       120,      300     ];
-  static const _labels = ['15 s', '30 s', '1 min',  '2 min',  '5 min' ];
+  static const _values = [15,      30,      60,      120,      300     ];
+  static const _labels = ['15 s',  '30 s',  '1 min', '2 min',  '5 min' ];
 
   @override
   Widget build(BuildContext context) {
@@ -534,7 +484,7 @@ class _RefreshIntervalSelector extends StatelessWidget {
       value:     settings.refreshInterval,
       underline: const SizedBox.shrink(),
       style:     AppTextStyles.label.copyWith(color: AppColors.primary),
-      icon: const SizedBox.shrink(),
+      icon:      const SizedBox.shrink(),
       onChanged: (v) {
         if (v != null) {
           AppUtils.hapticSelect();
@@ -543,10 +493,7 @@ class _RefreshIntervalSelector extends StatelessWidget {
       },
       items: List.generate(
         _values.length,
-        (i) => DropdownMenuItem(
-          value: _values[i],
-          child: Text(_labels[i]),
-        ),
+        (i) => DropdownMenuItem(value: _values[i], child: Text(_labels[i])),
       ),
     );
   }

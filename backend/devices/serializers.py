@@ -3,16 +3,8 @@ from .models import Device, DeviceType
 
 
 class DeviceTypeSerializer(serializers.ModelSerializer):
-    """
-    Serializer for Device Types (Router, Switch, Firewall, etc.)
-    
-    Fields:
-    - id: Unique identifier
-    - name: Type name
-    - description: Description of what this type is
-    """
     class Meta:
-        model = DeviceType
+        model  = DeviceType
         fields = ('id', 'name', 'description')
 
 
@@ -39,6 +31,10 @@ class DeviceSerializer(serializers.ModelSerializer):
     )
     assigned_to_username = serializers.CharField(
         source='assigned_to.username',
+        read_only=True
+    )
+    organisation_name = serializers.CharField(
+        source='organisation.name',
         read_only=True
     )
     # Fields that exist in the mobile model but not in the Django model
@@ -74,6 +70,7 @@ class DeviceSerializer(serializers.ModelSerializer):
             'ip_address', 'mac_address', 'location', 'description',
             'status', 'is_active', 'last_seen',
             'snmp_enabled', 'snmp_community',
+            'organisation', 'organisation_name',
             'assigned_to', 'assigned_to_username',
             'created_at', 'updated_at',
         )
