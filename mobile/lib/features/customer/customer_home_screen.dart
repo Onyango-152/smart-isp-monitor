@@ -263,7 +263,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
               color: AppColors.primarySurfaceOf(context),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.wifi_rounded, color: AppColors.primary, size: 22),
+            child: Icon(
+              Icons.wifi_rounded, 
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? AppColors.primaryLight 
+                  : AppColors.primary, 
+              size: 22,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -372,7 +378,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
             ),
             child: Icon(
               hasIssue ? Icons.warning_rounded : Icons.check_circle_rounded,
-              color: AppColors.primary,
+              color: Theme.of(context).brightness == Brightness.dark 
+                  ? AppColors.primaryLight 
+                  : AppColors.primary,
               size: 22,
             ),
           ),
@@ -407,10 +415,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
                 color: AppColors.primarySurfaceOf(context),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Text(
+              child: Text(
                 'Active',
                 style: TextStyle(
-                  color: AppColors.primary,
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? AppColors.primaryLight 
+                      : AppColors.primary,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                 ),
@@ -498,7 +508,13 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
             ),
             child: Row(
               children: [
-                const Icon(Icons.check_circle, color: AppColors.primary, size: 24),
+                Icon(
+                  Icons.check_circle, 
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? AppColors.primaryLight 
+                      : AppColors.primary, 
+                  size: 24,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -573,7 +589,9 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isOnline = status == 'online';
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -585,7 +603,7 @@ class _StatusPill extends StatelessWidget {
         style: TextStyle(
           fontSize:   12,
           fontWeight: FontWeight.bold,
-          color:      AppColors.primary,
+          color:      isDark ? AppColors.primaryLight : AppColors.primary,
         ),
       ),
     );
@@ -605,6 +623,8 @@ class _KpiTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
@@ -615,7 +635,11 @@ class _KpiTile extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Icon(icon, size: 18, color: AppColors.primary),
+            Icon(
+              icon, 
+              size: 18, 
+              color: isDark ? AppColors.primaryLight : AppColors.primary,
+            ),
             const SizedBox(height: 6),
             Text(
               value,
@@ -646,10 +670,11 @@ class _IssueRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final resolved       = alert.isResolved;
-    final statusColor    = AppColors.primary;
+    final statusColor    = isDark ? AppColors.primaryLight : AppColors.primary;
     final badgeBg        = AppColors.primarySurfaceOf(context);
-    final badgeTextColor = AppColors.primary;
+    final badgeTextColor = isDark ? AppColors.primaryLight : AppColors.primary;
 
     return Container(
       margin:  const EdgeInsets.only(bottom: 8),

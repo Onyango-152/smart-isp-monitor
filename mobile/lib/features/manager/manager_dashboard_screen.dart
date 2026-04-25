@@ -263,7 +263,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                         ),
                         PieChartSectionData(
                           value: 100 - provider.networkUptimePct,
-                          color: AppColors.divider,
+                          color: AppColors.dividerOf(context),
                           radius: 18,
                           showTitle: false,
                         ),
@@ -275,16 +275,18 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                     children: [
                       Text(
                         '${provider.networkUptimePct.toStringAsFixed(1)}%',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: AppColors.textPrimaryOf(context),
                         ),
                       ),
-                      const Text(
+                      Text(
                         'uptime',
-                        style:
-                            TextStyle(fontSize: 11, color: AppColors.textHint),
+                        style: TextStyle(
+                          fontSize: 11, 
+                          color: AppColors.textHintOf(context),
+                        ),
                       ),
                     ],
                   ),
@@ -378,8 +380,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
-              getDrawingHorizontalLine: (_) => const FlLine(
-                color: AppColors.divider,
+              getDrawingHorizontalLine: (_) => FlLine(
+                color: AppColors.dividerOf(context),
                 strokeWidth: 1,
               ),
             ),
@@ -392,8 +394,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                   interval: 2,
                   getTitlesWidget: (value, _) => Text(
                     value.toInt().toString(),
-                    style: const TextStyle(
-                        fontSize: 10, color: AppColors.textHint),
+                    style: TextStyle(
+                      fontSize: 10, 
+                      color: AppColors.textHintOf(context),
+                    ),
                   ),
                 ),
               ),
@@ -412,8 +416,10 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                     }
                     return Text(
                       days[index],
-                      style: const TextStyle(
-                          fontSize: 10, color: AppColors.textHint),
+                      style: TextStyle(
+                        fontSize: 10, 
+                        color: AppColors.textHintOf(context),
+                      ),
                     );
                   },
                 ),
@@ -448,11 +454,14 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     return _SectionCard(
       title: 'Device Fleet',
       child: preview.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 'No devices available.',
-                style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                style: TextStyle(
+                  fontSize: 12, 
+                  color: AppColors.textHintOf(context),
+                ),
               ),
             )
           : Column(
@@ -468,16 +477,18 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.info_outline,
                         size: 14,
-                        color: AppColors.textHint,
+                        color: AppColors.textHintOf(context),
                       ),
                       const SizedBox(width: 6),
                       Text(
                         '+$extra more - open Devices tab to see all',
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textHint),
+                        style: TextStyle(
+                          fontSize: 12, 
+                          color: AppColors.textHintOf(context),
+                        ),
                       ),
                     ],
                   ),
@@ -511,32 +522,38 @@ class _KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: AppColors.surfaceOf(context),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04), blurRadius: 6),
+                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04), 
+                blurRadius: 6),
           ],
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 20),
+            Icon(icon, color: isDark ? AppColors.primaryLight : color, size: 20),
             const SizedBox(height: 6),
             Text(
               value,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: color,
+                color: isDark ? AppColors.primaryLight : color,
               ),
             ),
             Text(
               label,
-              style: const TextStyle(fontSize: 10, color: AppColors.textHint),
+              style: TextStyle(
+                fontSize: 10, 
+                color: AppColors.textHintOf(context),
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -554,13 +571,18 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04), 
+            blurRadius: 6,
+          ),
         ],
       ),
       child: Column(
@@ -568,10 +590,10 @@ class _SectionCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              color: AppColors.textPrimaryOf(context),
             ),
           ),
           const SizedBox(height: 12),
@@ -601,7 +623,10 @@ class _LegendDot extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          style: TextStyle(
+            fontSize: 11, 
+            color: AppColors.textSecondaryOf(context),
+          ),
         ),
       ],
     );
@@ -616,6 +641,7 @@ class _FleetRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final statusColor = _statusBlue(device.status);
     final latency = metric?.latencyMs != null
         ? '${metric!.latencyMs!.toStringAsFixed(0)} ms'
@@ -623,9 +649,13 @@ class _FleetRow extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: const BoxDecoration(
-        border:
-            Border(bottom: BorderSide(color: AppColors.divider, width: 0.5)),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.dividerOf(context), 
+            width: 0.5,
+          ),
+        ),
       ),
       child: Row(
         children: [
@@ -642,16 +672,18 @@ class _FleetRow extends StatelessWidget {
               children: [
                 Text(
                   device.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                    color: AppColors.textPrimaryOf(context),
                   ),
                 ),
                 Text(
                   device.location ?? device.ipAddress,
-                  style:
-                      const TextStyle(fontSize: 11, color: AppColors.textHint),
+                  style: TextStyle(
+                    fontSize: 11, 
+                    color: AppColors.textHintOf(context),
+                  ),
                 ),
               ],
             ),
@@ -661,15 +693,18 @@ class _FleetRow extends StatelessWidget {
             children: [
               Text(
                 latency,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: AppColors.textPrimaryOf(context),
                 ),
               ),
-              const Text(
+              Text(
                 'latency',
-                style: TextStyle(fontSize: 10, color: AppColors.textHint),
+                style: TextStyle(
+                  fontSize: 10, 
+                  color: AppColors.textHintOf(context),
+                ),
               ),
             ],
           ),

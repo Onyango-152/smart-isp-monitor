@@ -464,7 +464,9 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                             child: Text(
                               'Network $label',
                               style: TextStyle(
-                                color: AppColors.primary,
+                                color: Theme.of(context).brightness == Brightness.dark 
+                                    ? AppColors.primaryLight 
+                                    : AppColors.primary,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0.5,
@@ -994,7 +996,8 @@ class _AlertPreviewTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = AppColors.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = isDark ? AppColors.primaryLight : AppColors.primary;
     final bg    = AppColors.primarySurfaceOf(context);
 
     return GestureDetector(
@@ -1005,7 +1008,7 @@ class _AlertPreviewTile extends StatelessWidget {
         decoration: BoxDecoration(
           color:        Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(14),
-          border:       Border.all(color: AppColors.primary.withOpacity(0.12)),
+          border:       Border.all(color: color.withOpacity(0.12)),
         ),
         child: Row(
           children: [
@@ -1023,7 +1026,7 @@ class _AlertPreviewTile extends StatelessWidget {
                       Text(
                         AppUtils.severityLabel(alert.severity).toUpperCase(),
                         style: AppTextStyles.caption.copyWith(
-                          color: AppColors.primary,
+                          color: color,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.4,
                         ),
@@ -1132,6 +1135,7 @@ class _PriorityQueueTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isOffline   = device.status == AppConstants.statusOffline;
 
     return GestureDetector(
@@ -1142,7 +1146,9 @@ class _PriorityQueueTile extends StatelessWidget {
         decoration: BoxDecoration(
           color:        Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
-          border:       Border.all(color: AppColors.primary.withOpacity(0.12)),
+          border:       Border.all(
+            color: (isDark ? AppColors.primaryLight : AppColors.primary).withOpacity(0.12),
+          ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1164,7 +1170,7 @@ class _PriorityQueueTile extends StatelessWidget {
                       Text(
                         isOffline ? 'OFFLINE' : 'DEGRADED',
                         style: AppTextStyles.caption.copyWith(
-                          color: AppColors.primary,
+                          color: isDark ? AppColors.primaryLight : AppColors.primary,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.4,
                         ),
@@ -1176,7 +1182,7 @@ class _PriorityQueueTile extends StatelessWidget {
                     Text(
                       topAlert!.message,
                       style: AppTextStyles.caption.copyWith(
-                        color: AppColors.primary,
+                        color: isDark ? AppColors.primaryLight : AppColors.primary,
                         fontWeight: FontWeight.w600,
                         fontSize: 11,
                       ),
@@ -1224,6 +1230,8 @@ class _FleetDeviceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return GestureDetector(
       onTap: () {
         AppUtils.haptic();
@@ -1235,7 +1243,9 @@ class _FleetDeviceCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primary.withOpacity(0.12)),
+          border: Border.all(
+            color: (isDark ? AppColors.primaryLight : AppColors.primary).withOpacity(0.12),
+          ),
         ),
         child: Row(
           children: [
@@ -1258,7 +1268,7 @@ class _FleetDeviceCard extends StatelessWidget {
                       Text(
                         device.status.toUpperCase(),
                         style: AppTextStyles.caption.copyWith(
-                          color: AppColors.primary,
+                          color: isDark ? AppColors.primaryLight : AppColors.primary,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.4,
                         ),
@@ -1302,25 +1312,31 @@ class _SummaryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.primarySurfaceOf(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        border: Border.all(
+          color: (isDark ? AppColors.primaryLight : AppColors.primary).withOpacity(0.2),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             value,
-            style: AppTextStyles.labelBold.copyWith(color: AppColors.primary),
+            style: AppTextStyles.labelBold.copyWith(
+              color: isDark ? AppColors.primaryLight : AppColors.primary,
+            ),
           ),
           const SizedBox(width: 6),
           Text(
             label,
             style: AppTextStyles.caption.copyWith(
-              color: AppColors.primary,
+              color: isDark ? AppColors.primaryLight : AppColors.primary,
               fontWeight: FontWeight.w600,
             ),
           ),

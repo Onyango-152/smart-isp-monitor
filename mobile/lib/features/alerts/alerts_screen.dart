@@ -480,7 +480,9 @@ class _SeverityChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent = color ?? AppColors.primary;
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
       child: GestureDetector(
@@ -489,10 +491,12 @@ class _SeverityChip extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           padding:  const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
           decoration: BoxDecoration(
-            color:        selected ? accent.withOpacity(0.12) : Colors.white,
+            color:        selected 
+                ? accent.withOpacity(0.12) 
+                : (isDark ? AppColors.darkSurfaceVariant : Colors.white),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: selected ? accent : AppColors.divider,
+              color: selected ? accent : AppColors.dividerOf(context),
               width: selected ? 1.5   : 1.0,
             ),
           ),
@@ -501,7 +505,7 @@ class _SeverityChip extends StatelessWidget {
             style: TextStyle(
               fontSize:   12,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              color:      selected ? accent : AppColors.textSecondary,
+              color:      selected ? accent : AppColors.textSecondaryOf(context),
             ),
           ),
         ),
@@ -522,6 +526,7 @@ class _AlertCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final color    = AppColors.primary;
     final provider = context.watch<AlertsProvider>();
     final inSelectMode = provider.isSelectMode;
@@ -552,7 +557,12 @@ class _AlertCard extends StatelessWidget {
               ? AppColors.primarySurfaceOf(context)
               : AppColors.surfaceOf(context),
           borderRadius: BorderRadius.circular(14),
-          border:       Border(left: BorderSide(color: color, width: 4)),
+          border:       Border(
+            left: BorderSide(
+              color: isDark ? AppColors.primaryLight : color, 
+              width: 4,
+            ),
+          ),
           boxShadow:    AppShadows.card,
         ),
         child: Padding(
@@ -575,7 +585,7 @@ class _AlertCard extends StatelessWidget {
                     child: Text(
                       alert.alertType.replaceAll('_', ' ').toUpperCase(),
                       style: AppTextStyles.caption.copyWith(
-                        color:         color,
+                        color:         isDark ? AppColors.primaryLight : color,
                         fontWeight:    FontWeight.w700,
                         letterSpacing: 0.5,
                       ),
@@ -585,7 +595,9 @@ class _AlertCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     AppUtils.timeAgo(alert.triggeredAt),
-                    style: AppTextStyles.caption,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondaryOf(context),
+                    ),
                   ),
                 ],
               ),
@@ -593,7 +605,12 @@ class _AlertCard extends StatelessWidget {
               const SizedBox(height: 7),
 
               // ── Message ───────────────────────────────────────────────
-              Text(alert.message, style: AppTextStyles.body),
+              Text(
+                alert.message, 
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.textPrimaryOf(context),
+                ),
+              ),
 
               const SizedBox(height: 8),
 
@@ -603,7 +620,9 @@ class _AlertCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       alert.deviceName,
-                      style: AppTextStyles.caption,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondaryOf(context),
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -617,7 +636,9 @@ class _AlertCard extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         AppUtils.timeAgo(alert.resolvedAt!),
-                        style: AppTextStyles.caption,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondaryOf(context),
+                        ),
                       ),
                     ],
                   ],
@@ -716,6 +737,8 @@ class _MiniPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
@@ -725,7 +748,7 @@ class _MiniPill extends StatelessWidget {
       child: Text(
         label,
         style: AppTextStyles.caption.copyWith(
-          color:      AppColors.primary,
+          color:      isDark ? AppColors.primaryLight : AppColors.primary,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -748,6 +771,8 @@ class _QuickActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -755,14 +780,16 @@ class _QuickActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           color:        AppColors.primarySurfaceOf(context),
           borderRadius: BorderRadius.circular(7),
-          border:       Border.all(color: AppColors.primary.withOpacity(0.35)),
+          border:       Border.all(
+            color: (isDark ? AppColors.primaryLight : AppColors.primary).withOpacity(0.35),
+          ),
         ),
         child: Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            color: AppColors.primary,
+            color: isDark ? AppColors.primaryLight : AppColors.primary,
           ),
         ),
       ),

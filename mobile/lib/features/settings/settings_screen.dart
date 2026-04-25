@@ -101,7 +101,7 @@ class _SettingsContent extends StatelessWidget {
           const SizedBox(height: 28),
 
           // ── Notifications ─────────────────────────────────────────────
-          _buildCard('Notifications', [
+          _buildCard(context, 'Notifications', [
             _Tile(
               title:    'Push Alerts',
               subtitle: 'Receive push notifications for network alerts',
@@ -139,7 +139,7 @@ class _SettingsContent extends StatelessWidget {
           const SizedBox(height: 12),
 
           // ── Display ───────────────────────────────────────────────────
-          _buildCard('Display', [
+          _buildCard(context, 'Display', [
             _Tile(
               title:    'Dark Mode',
               subtitle: 'Switch to a dark colour scheme',
@@ -166,7 +166,7 @@ class _SettingsContent extends StatelessWidget {
 
           // ── Monitoring (non-customer only) ────────────────────────────
           if (!isCustomer) ...[
-            _buildCard('Monitoring', [
+            _buildCard(context, 'Monitoring', [
               _Tile(
                 title:    'Refresh Interval',
                 subtitle: 'How often the dashboard auto-refreshes',
@@ -187,13 +187,13 @@ class _SettingsContent extends StatelessWidget {
           ],
 
           // ── System ────────────────────────────────────────────────────
-          _buildCard('System', [
+          _buildCard(context, 'System', [
             if (!isCustomer)
               _Tile(
                 title:    'API Endpoint',
                 subtitle: AppConstants.baseUrl,
-                trailing: const Icon(Icons.chevron_right_rounded,
-                    color: AppColors.textSecondary),
+                trailing: Icon(Icons.chevron_right_rounded,
+                    color: AppColors.textSecondaryOf(context)),
                 onTap: () =>
                     AppUtils.showSnackbar(context, 'Endpoint config coming soon.'),
               ),
@@ -208,14 +208,16 @@ class _SettingsContent extends StatelessWidget {
                 ),
                 child: Text('Up to date',
                     style: AppTextStyles.label.copyWith(
-                        color: AppColors.primary)),
+                        color: Theme.of(context).brightness == Brightness.dark 
+                            ? AppColors.primaryLight 
+                            : AppColors.primary)),
               ),
             ),
             _Tile(
               title:    'Send Feedback',
               subtitle: 'Report a bug or suggest a feature',
-              trailing: const Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary),
+              trailing: Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textSecondaryOf(context)),
               onTap: () {
                 AppUtils.haptic();
                 AppUtils.showSnackbar(context, 'Feedback feature coming soon.');
@@ -224,8 +226,8 @@ class _SettingsContent extends StatelessWidget {
             _Tile(
               title:    'About ISP Monitor',
               subtitle: 'Version ${AppConstants.appVersion} — build 1',
-              trailing: const Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary),
+              trailing: Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textSecondaryOf(context)),
               onTap: () => showAboutDialog(
                 context:            context,
                 applicationName:    'ISP Monitor',
@@ -272,8 +274,10 @@ class _SettingsContent extends StatelessWidget {
             backgroundColor: AppColors.primarySurfaceOf(context),
             child: Text(
               initial,
-              style: const TextStyle(
-                color:      AppColors.primary,
+              style: TextStyle(
+                color:      Theme.of(context).brightness == Brightness.dark 
+                    ? AppColors.primaryLight 
+                    : AppColors.primary,
                 fontWeight: FontWeight.bold,
                 fontSize:   32,
               ),
@@ -282,19 +286,19 @@ class _SettingsContent extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             name,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize:   22,
               fontWeight: FontWeight.w700,
-              color:      AppColors.textPrimary,
+              color:      AppColors.textPrimaryOf(context),
             ),
           ),
           const SizedBox(height: 4),
           if (email.isNotEmpty)
             Text(
               email,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
-                color:    AppColors.textSecondary,
+                color:    AppColors.textSecondaryOf(context),
               ),
             ),
           const SizedBox(height: 10),
@@ -306,8 +310,10 @@ class _SettingsContent extends StatelessWidget {
             ),
             child: Text(
               roleLabel,
-              style: const TextStyle(
-                color:      AppColors.primary,
+              style: TextStyle(
+                color:      Theme.of(context).brightness == Brightness.dark 
+                    ? AppColors.primaryLight 
+                    : AppColors.primary,
                 fontSize:   12,
                 fontWeight: FontWeight.w600,
               ),
@@ -320,11 +326,11 @@ class _SettingsContent extends StatelessWidget {
 
   // ── Card builder ──────────────────────────────────────────────────────────
 
-  static Widget _buildCard(String title, List<Widget> tiles) {
+  Widget _buildCard(BuildContext context, String title, List<Widget> tiles) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color:        AppColors.surface,
+        color:        AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(14),
       ),
       child: ClipRRect(
@@ -336,15 +342,15 @@ class _SettingsContent extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
               child: Text(
                 title.toUpperCase(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize:      11,
                   fontWeight:    FontWeight.w700,
                   letterSpacing: 1.1,
-                  color:         AppColors.textSecondary,
+                  color:         AppColors.textSecondaryOf(context),
                 ),
               ),
             ),
-            const Divider(height: 8),
+            Divider(height: 8, color: AppColors.dividerOf(context)),
             ...tiles,
           ],
         ),
@@ -439,14 +445,14 @@ class _Tile extends StatelessWidget {
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize:   14,
-                              color:      iconColor ?? AppColors.textPrimary,
+                              color:      iconColor ?? AppColors.textPrimaryOf(context),
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(subtitle,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12,
-                                  color:    AppColors.textSecondary)),
+                                  color:    AppColors.textSecondaryOf(context))),
                         ],
                       ),
                     ),
@@ -461,7 +467,7 @@ class _Tile extends StatelessWidget {
           ),
         ),
         if (!isLast)
-          const Divider(height: 1, indent: 16),
+          Divider(height: 1, indent: 16, color: AppColors.dividerOf(context)),
       ],
     );
   }
@@ -480,10 +486,14 @@ class _RefreshIntervalSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return DropdownButton<int>(
       value:     settings.refreshInterval,
       underline: const SizedBox.shrink(),
-      style:     AppTextStyles.label.copyWith(color: AppColors.primary),
+      style:     AppTextStyles.label.copyWith(
+        color: isDark ? AppColors.primaryLight : AppColors.primary,
+      ),
       icon:      const SizedBox.shrink(),
       onChanged: (v) {
         if (v != null) {
