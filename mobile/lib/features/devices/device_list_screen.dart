@@ -153,18 +153,33 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
   // ── Search bar ────────────────────────────────────────────────────────────
 
   Widget _buildSearchBar(DeviceProvider provider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
       child: TextField(
         controller:  _searchController,
         onChanged:   provider.search,
-        style:       AppTextStyles.body,
+        style:       TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: AppColors.textPrimaryOf(context),
+        ),
         decoration: InputDecoration(
           hintText:   'Search by name, IP, location…',
-          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+          hintStyle: TextStyle(color: AppColors.textHintOf(context)),
+          prefixIcon: Icon(
+            Icons.search_rounded, 
+            size: 20,
+            color: isDark ? AppColors.primaryLight : AppColors.textSecondary,
+          ),
           suffixIcon: provider.searchQuery.isNotEmpty
               ? IconButton(
-                  icon:      const Icon(Icons.clear_rounded, size: 18),
+                  icon: Icon(
+                    Icons.clear_rounded, 
+                    size: 18,
+                    color: isDark ? AppColors.primaryLight : AppColors.textSecondary,
+                  ),
                   onPressed: () {
                     _searchController.clear();
                     provider.search('');
@@ -253,6 +268,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
   // ── Results bar ───────────────────────────────────────────────────────────
 
   Widget _buildResultsBar(DeviceProvider provider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final showing = provider.filteredCount;
     final total   = provider.totalCount;
     final label   = provider.hasActiveFilters
@@ -263,24 +279,33 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
         children: [
-          Text(label, style: AppTextStyles.bodySmall),
+          Text(
+            label, 
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
           if (provider.hasActiveFilters) ...[
             const Spacer(),
             TextButton.icon(
-              icon: const Icon(Icons.filter_alt_off_rounded, size: 16),
+              icon: Icon(
+                Icons.filter_alt_off_rounded, 
+                size: 16,
+                color: isDark ? AppColors.primaryLight : AppColors.primary,
+              ),
               onPressed: () {
                 _searchController.clear();
                 AppUtils.hapticSelect();
                 provider.clearFilters();
               },
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
+                foregroundColor: isDark ? AppColors.primaryLight : AppColors.primary,
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 4),
               ),
               label: Text('Clear Filters',
                   style: AppTextStyles.label.copyWith(
-                    color: AppColors.primary,
+                    color: isDark ? AppColors.primaryLight : AppColors.primary,
                   )),
             ),
           ],
@@ -362,7 +387,8 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = color ?? AppColors.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = color ?? (isDark ? AppColors.primaryLight : AppColors.primary);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
@@ -375,8 +401,8 @@ class _FilterChip extends StatelessWidget {
           padding:  const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
           decoration: BoxDecoration(
             color:        selected
-                ? accent.withOpacity(0.12)
-                : Theme.of(context).colorScheme.surface,
+                ? accent.withOpacity(isDark ? 0.15 : 0.12)
+                : (isDark ? AppColors.darkSurfaceVariant : Theme.of(context).colorScheme.surface),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: selected ? accent : AppColors.dividerOf(context),

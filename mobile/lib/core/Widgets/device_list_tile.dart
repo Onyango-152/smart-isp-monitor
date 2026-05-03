@@ -45,9 +45,10 @@ class DeviceListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final device      = this.device;
     final metric      = latestMetric;
-    final statusColor = AppColors.primary;
+    final statusColor = isDark ? AppColors.primaryLight : AppColors.primary;
     final surfaceColor = AppColors.surfaceOf(context);
 
     return Padding(
@@ -71,7 +72,10 @@ class DeviceListTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               boxShadow:    AppShadows.card,
               border: Border(
-                left: BorderSide(color: AppColors.primary, width: 3.5),
+                left: BorderSide(
+                  color: isDark ? AppColors.primaryLight : AppColors.primary, 
+                  width: 3.5,
+                ),
               ),
             ),
             child: Padding(
@@ -92,7 +96,9 @@ class DeviceListTile extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 device.name,
-                                style: AppTextStyles.heading3,
+                                style: AppTextStyles.heading3.copyWith(
+                                  color: AppColors.textPrimaryOf(context),
+                                ),
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
                               ),
@@ -107,10 +113,10 @@ class DeviceListTile extends StatelessWidget {
                               ),
                               child: Text(
                                 device.status.toUpperCase(),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.primary,
+                                  color: isDark ? AppColors.primaryLight : AppColors.primary,
                                   letterSpacing: 0.4,
                                 ),
                               ),
@@ -124,7 +130,9 @@ class DeviceListTile extends StatelessWidget {
                         Text(
                           '${device.ipAddress}  ·  '
                           '${AppUtils.deviceTypeLabel(device.deviceType)}',
-                          style: AppTextStyles.caption,
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textSecondaryOf(context),
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
 
@@ -133,7 +141,9 @@ class DeviceListTile extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             device.location!,
-                            style: AppTextStyles.caption,
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondaryOf(context),
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
@@ -145,7 +155,7 @@ class DeviceListTile extends StatelessWidget {
                             children: [
                               _MetricChip(
                                 label: AppUtils.formatLatency(metric!.latencyMs),
-                                color: AppColors.primary,
+                                color: isDark ? AppColors.primaryLight : AppColors.primary,
                                 bg:    AppColors.primarySurfaceOf(context),
                               ),
                               if ((metric.packetLossPct ?? 0) > 0) ...[
@@ -153,7 +163,7 @@ class DeviceListTile extends StatelessWidget {
                                 _MetricChip(
                                   label:
                                       '${metric.packetLossPct!.toStringAsFixed(1)}% loss',
-                                  color: AppColors.primary,
+                                  color: isDark ? AppColors.primaryLight : AppColors.primary,
                                   bg:    AppColors.primarySurfaceOf(context),
                                 ),
                               ],
@@ -165,7 +175,9 @@ class DeviceListTile extends StatelessWidget {
                           device.lastSeen != null
                               ? 'Last seen ${AppUtils.timeAgo(device.lastSeen)}'
                               : 'Last seen Never',
-                          style: AppTextStyles.caption,
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textSecondaryOf(context),
+                          ),
                         ),
                       ],
                     ),
@@ -180,10 +192,12 @@ class DeviceListTile extends StatelessWidget {
   }
 
   void _showQuickActions(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final device = this.device;
 
     showModalBottomSheet(
       context: context,
+      backgroundColor: AppColors.surfaceOf(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -198,7 +212,7 @@ class DeviceListTile extends StatelessWidget {
                 width: 36, height: 4,
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: AppColors.divider,
+                  color: AppColors.dividerOf(context),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -209,14 +223,24 @@ class DeviceListTile extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(device.name, style: AppTextStyles.heading3),
-                        Text(device.ipAddress, style: AppTextStyles.caption),
+                        Text(
+                          device.name, 
+                          style: AppTextStyles.heading3.copyWith(
+                            color: AppColors.textPrimaryOf(context),
+                          ),
+                        ),
+                        Text(
+                          device.ipAddress, 
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textSecondaryOf(context),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ],
               ),
-              const Divider(height: 24),
+              Divider(height: 24, color: AppColors.dividerOf(context)),
               // Actions
               _QuickActionTile(
                 label: 'Ping',
@@ -285,8 +309,18 @@ class _QuickActionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      title:    Text(label, style: AppTextStyles.body),
-      subtitle: Text(subtitle, style: AppTextStyles.caption),
+      title:    Text(
+        label, 
+        style: AppTextStyles.body.copyWith(
+          color: AppColors.textPrimaryOf(context),
+        ),
+      ),
+      subtitle: Text(
+        subtitle, 
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.textSecondaryOf(context),
+        ),
+      ),
       onTap: onTap,
     );
   }

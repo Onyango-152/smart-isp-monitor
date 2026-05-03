@@ -136,7 +136,17 @@ class _DeviceDetailContent extends StatelessWidget {
       pinned: true,
       elevation: 0,
       stretch: true,
+      backgroundColor: AppColors.appBarGradientStart,
+      surfaceTintColor: Colors.transparent,
       leading: _CircleBackButton(onTap: () => Navigator.of(context).pop()),
+      title: Text(
+        device.name,
+        style: const TextStyle(
+          color: AppColors.textOnDark,
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       actions: [
         if (provider != null)
           TextButton(
@@ -252,8 +262,6 @@ class _DeviceDetailContent extends StatelessWidget {
             ),
           ),
         ),
-        titlePadding: const EdgeInsets.only(left: 56, bottom: 14),
-        title: Text(device.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
       ),
     );
   }

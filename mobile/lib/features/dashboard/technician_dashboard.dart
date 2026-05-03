@@ -734,12 +734,19 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
               const SizedBox(width: 8),
               Text(
                 'Risk Forecast',
-                style: AppTextStyles.heading3.copyWith(fontSize: 14),
+                style: AppTextStyles.heading3.copyWith(
+                  fontSize: 14,
+                  color: AppColors.textPrimaryOf(context),
+                ),
               ),
               const Spacer(),
               Text(
                 '${dashboard.highRiskPredictions.length} at risk',
-                style: AppTextStyles.caption.copyWith(color: AppColors.primary),
+                style: AppTextStyles.caption.copyWith(
+                  color: Theme.of(context).brightness == Brightness.dark 
+                      ? AppColors.primaryLight 
+                      : AppColors.primary,
+                ),
               ),
             ],
           ),
@@ -762,7 +769,9 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                   Expanded(
                     child: Text(
                       '${p.deviceName} · ${_metricLabel(p.metricName)}',
-                      style: AppTextStyles.bodySmall,
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                      ),
                     ),
                   ),
                   Text(
@@ -779,7 +788,9 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
           if (dashboard.highRiskPredictions.length > items.length)
             Text(
               'View device details for full forecast list.',
-              style: AppTextStyles.caption,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondaryOf(context),
+              ),
             ),
         ],
       ),
@@ -839,10 +850,18 @@ class _TechnicianDashboardState extends State<TechnicianDashboard>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Weekly Faults', style: AppTextStyles.heading3),
+                      Text(
+                        'Weekly Faults', 
+                        style: AppTextStyles.heading3.copyWith(
+                          color: AppColors.textPrimaryOf(context),
+                        ),
+                      ),
                       Text(
                         '${dashboard.faultsThisWeek} total this week',
-                        style: AppTextStyles.caption.copyWith(fontSize: 11),
+                        style: AppTextStyles.caption.copyWith(
+                          fontSize: 11,
+                          color: AppColors.textSecondaryOf(context),
+                        ),
                       ),
                     ],
                   ),
@@ -1020,7 +1039,9 @@ class _AlertPreviewTile extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(alert.deviceName,
-                            style: AppTextStyles.heading3,
+                            style: AppTextStyles.heading3.copyWith(
+                              color: AppColors.textPrimaryOf(context),
+                            ),
                             overflow: TextOverflow.ellipsis),
                       ),
                       Text(
@@ -1035,7 +1056,9 @@ class _AlertPreviewTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(alert.message,
-                      style: AppTextStyles.caption,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondaryOf(context),
+                      ),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1),
                 ],
@@ -1046,7 +1069,10 @@ class _AlertPreviewTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(AppUtils.timeAgo(alert.triggeredAt),
-                    style: AppTextStyles.caption.copyWith(fontSize: 10)),
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 10,
+                      color: AppColors.textSecondaryOf(context),
+                    )),
               ],
             ),
           ],
@@ -1088,11 +1114,17 @@ class _MetricTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-            style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w500),
+            style: AppTextStyles.caption.copyWith(
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondaryOf(context),
+            ),
             overflow: TextOverflow.ellipsis),
           const SizedBox(height: 6),
           Text(value,
-            style: AppTextStyles.heading3.copyWith(fontSize: 15)),
+            style: AppTextStyles.heading3.copyWith(
+              fontSize: 15,
+              color: AppColors.textPrimaryOf(context),
+            )),
           if (progress != null) ...[
             const SizedBox(height: 6),
             ClipRRect(
@@ -1163,7 +1195,9 @@ class _PriorityQueueTile extends StatelessWidget {
                       Expanded(
                         child: Text(
                           device.name,
-                          style: AppTextStyles.heading3,
+                          style: AppTextStyles.heading3.copyWith(
+                            color: AppColors.textPrimaryOf(context),
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -1197,7 +1231,10 @@ class _PriorityQueueTile extends StatelessWidget {
                         child: Text(
                           '${device.ipAddress}'
                           '${device.location != null ? "  ·  ${device.location}" : ""}',
-                          style: AppTextStyles.caption.copyWith(fontSize: 11),
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 11,
+                            color: AppColors.textSecondaryOf(context),
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -1260,7 +1297,9 @@ class _FleetDeviceCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           device.name,
-                          style: AppTextStyles.heading3,
+                          style: AppTextStyles.heading3.copyWith(
+                            color: AppColors.textPrimaryOf(context),
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -1281,14 +1320,20 @@ class _FleetDeviceCard extends StatelessWidget {
                   Text(
                     '${device.ipAddress}  ·  '
                     '${AppUtils.deviceTypeLabel(device.deviceType)}',
-                    style: AppTextStyles.caption.copyWith(fontSize: 11),
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 11,
+                      color: AppColors.textSecondaryOf(context),
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (device.lastSeen != null) ...[
                     const SizedBox(height: 6),
                     Text(
                       'Last seen ${AppUtils.timeAgo(device.lastSeen)}',
-                      style: AppTextStyles.caption.copyWith(fontSize: 10),
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 10,
+                        color: AppColors.textSecondaryOf(context),
+                      ),
                     ),
                   ],
                 ],
