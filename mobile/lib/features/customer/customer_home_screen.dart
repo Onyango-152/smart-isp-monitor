@@ -564,12 +564,28 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
             child:     const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              final message = reportController.text.trim();
+              if (message.isEmpty) {
+                AppUtils.showSnackbar(context, 'Please describe the issue.');
+                return;
+              }
               Navigator.pop(dialogContext);
-              AppUtils.showSnackbar(
-                context,
-                'Issue reported. A technician will follow up shortly.',
-              );
+              try {
+                await ApiClient.reportIssue(
+                  message: message,
+                  deviceId: context.read<CustomerHomeProvider>().myDevice?.id,
+                );
+                AppUtils.showSnackbar(
+                  context,
+                  'Issue reported. A technician will follow up shortly.',
+                );
+              } catch (_) {
+                AppUtils.showSnackbar(
+                  context,
+                  'Could not submit your report. Please try again.',
+                );
+              }
             },
             child: const Text('Submit'),
           ),

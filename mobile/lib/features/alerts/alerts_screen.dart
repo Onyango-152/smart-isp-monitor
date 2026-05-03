@@ -29,6 +29,7 @@ class _AlertsScreenState extends State<AlertsScreen>
 
   late final TabController _tabController;
   String _severityFilter = 'all';
+  String _sourceFilter = 'all';
 
   @override
   void initState() {
@@ -82,8 +83,8 @@ class _AlertsScreenState extends State<AlertsScreen>
             );
           }
 
-          final activeFiltered   = _filterBySeverity(provider.activeAlerts);
-          final resolvedFiltered = _filterBySeverity(provider.resolvedAlerts);
+          final activeFiltered   = _filterAlerts(provider.activeAlerts);
+          final resolvedFiltered = _filterAlerts(provider.resolvedAlerts);
 
           return Column(
             children: [
@@ -124,7 +125,7 @@ class _AlertsScreenState extends State<AlertsScreen>
       actions: [
         TextButton(
           onPressed: () => provider.selectAll(
-            _filterBySeverity(provider.activeAlerts),
+            _filterAlerts(provider.activeAlerts),
           ),
           child: const Text('Select All',
               style: TextStyle(color: AppColors.textOnDark)),
@@ -357,37 +358,61 @@ class _AlertsScreenState extends State<AlertsScreen>
           scrollDirection: Axis.horizontal,
           children: [
             _SeverityChip(
+              label:    'Customer Reported',
+              selected: _sourceFilter == 'customer',
+              color:    AppColors.primaryDark,
+              badgeCount: provider.customerReportedCount,
+              onTap:    () => setState(() {
+                _sourceFilter =
+                    _sourceFilter == 'customer' ? 'all' : 'customer';
+                if (_sourceFilter == 'customer') {
+                  _severityFilter = 'all';
+                }
+              }),
+            ),
+            _SeverityChip(
               label:    'All',
               selected: _severityFilter == 'all',
-              onTap:    () => setState(() => _severityFilter = 'all'),
+              onTap:    () => setState(() {
+                _severityFilter = 'all';
+                _sourceFilter = 'all';
+              }),
             ),
             _SeverityChip(
               label:    'Critical',
               selected: _severityFilter == AppConstants.severityCritical,
               color:    AppColors.primary,
-              onTap:    () => setState(
-                  () => _severityFilter = AppConstants.severityCritical),
+              onTap:    () => setState(() {
+                _severityFilter = AppConstants.severityCritical;
+                _sourceFilter = 'all';
+              }),
             ),
             _SeverityChip(
               label:    'High',
               selected: _severityFilter == AppConstants.severityHigh,
               color:    AppColors.primary,
-              onTap:    () => setState(
-                  () => _severityFilter = AppConstants.severityHigh),
+              onTap:    () => setState(() {
+                _severityFilter = AppConstants.severityHigh;
+                _sourceFilter = 'all';
+              }),
             ),
             _SeverityChip(
               label:    'Medium',
               selected: _severityFilter == AppConstants.severityMedium,
               color:    AppColors.primary,
-              onTap:    () => setState(
-                  () => _severityFilter = AppConstants.severityMedium),
+              onTap:    () => setState(() {
+                _severityFilter = AppConstants.severityMedium;
+                _sourceFilter = 'all';
+              }),
             ),
             _SeverityChip(
               label:    'Low',
               selected: _severityFilter == AppConstants.severityLow,
               color:    AppColors.primary,
-              onTap:    () => setState(
-                  () => _severityFilter = AppConstants.severityLow),
+              onTap:    () => setState(() {
+                _severityFilter = AppConstants.severityLow;
+                _sourceFilter = 'all';
+              }),
             ),
           ],
         ),
@@ -404,9 +429,13 @@ class _AlertsScreenState extends State<AlertsScreen>
     required bool             isActive,
   }) {
     if (alerts.isEmpty) {
-      final noData = isActive
-          ? provider.activeAlerts.isEmpty
-          : provider.resolvedAlerts.isEmpty;
+      final baseList = isActive
+          ? provider.activeAlerts
+          : provider.resolvedAlerts;
+      final sourceFiltered = _sourceFilter == 'customer'
+          ? baseList.where((a) => a.customerReported).toList()
+          : baseList;
+      final noData = sourceFiltered.isEmpty;
 
       if (noData) {
         return EmptyState(
@@ -425,12 +454,15 @@ class _AlertsScreenState extends State<AlertsScreen>
       // Data exists but filtered out
       return EmptyState(
         icon:        Icons.filter_list_off_rounded,
-        title:       'No ${_severityFilter.capitalize()} Alerts',
-        message:     'No ${isActive ? "active" : "resolved"} alerts match this severity filter.',
+        title:       'No Matching Alerts',
+        message:     'No ${isActive ? "active" : "resolved"} alerts match the current filters.',
         color:       AppColors.primary,
         animate:     false,
         actionLabel: 'Show All',
-        onAction:    () => setState(() => _severityFilter = 'all'),
+        onAction:    () => setState(() {
+          _severityFilter = 'all';
+          _sourceFilter = 'all';
+        }),
       );
     }
 
@@ -450,7 +482,10 @@ class _AlertsScreenState extends State<AlertsScreen>
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  List<AlertModel> _filterBySeverity(List<AlertModel> alerts) {
+  List<AlertModel> _filterAlerts(List<AlertModel> alerts) {
+    if (_sourceFilter == 'customer') {
+      return alerts.where((a) => a.customerReported).toList();
+    }
     if (_severityFilter == 'all') return alerts;
     return alerts.where((a) => a.severity == _severityFilter).toList();
   }
@@ -470,12 +505,14 @@ class _SeverityChip extends StatelessWidget {
   final bool         selected;
   final VoidCallback onTap;
   final Color?       color;
+  final int?         badgeCount;
 
   const _SeverityChip({
     required this.label,
     required this.selected,
     required this.onTap,
     this.color,
+    this.badgeCount,
   });
 
   @override
@@ -500,13 +537,38 @@ class _SeverityChip extends StatelessWidget {
               width: selected ? 1.5   : 1.0,
             ),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize:   12,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              color:      selected ? accent : AppColors.textSecondaryOf(context),
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize:   12,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color:      selected ? accent : AppColors.textSecondaryOf(context),
+                ),
+              ),
+              if (badgeCount != null && badgeCount! > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: selected ? accent : AppColors.dividerOf(context),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    badgeCount!.toString(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: selected
+                          ? AppColors.textOnDark
+                          : AppColors.textSecondaryOf(context),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -592,6 +654,10 @@ class _AlertCard extends StatelessWidget {
                     ),
                   ),
                   _MiniPill(label: 'ALERT', color: AppColors.primary),
+                  if (alert.customerReported) ...[
+                    const SizedBox(width: 6),
+                    _MiniPill(label: 'CUSTOMER', color: AppColors.primaryDark),
+                  ],
                   const SizedBox(width: 8),
                   Text(
                     AppUtils.timeAgo(alert.triggeredAt),
@@ -748,7 +814,7 @@ class _MiniPill extends StatelessWidget {
       child: Text(
         label,
         style: AppTextStyles.caption.copyWith(
-          color:      isDark ? AppColors.primaryLight : AppColors.primary,
+          color:      isDark ? AppColors.primaryLight : color,
           fontWeight: FontWeight.w700,
         ),
       ),

@@ -289,6 +289,24 @@ class ApiClient {
     }
   }
 
+  static Future<AlertModel> reportIssue({
+    required String message,
+    int? deviceId,
+  }) async {
+    try {
+      final res = await _dio.post(
+        AppConstants.reportIssueEndpoint,
+        data: {
+          'message': message,
+          if (deviceId != null) 'device': deviceId,
+        },
+      );
+      return AlertModel.fromJson(res.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
   // ── Metrics ──────────────────────────────────────────────────────────────
 
   static Future<List<MetricTypeModel>> getMetricTypes() async {

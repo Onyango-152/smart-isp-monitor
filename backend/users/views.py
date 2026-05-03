@@ -169,7 +169,7 @@ class LogoutView(APIView):
         "refresh": "token_here"
     }
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # Changed to AllowAny to prevent 401 errors
     
     def post(self, request):
         try:

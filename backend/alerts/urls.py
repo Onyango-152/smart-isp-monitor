@@ -16,6 +16,7 @@ urlpatterns = [
     path('<int:pk>/',             views.AlertDetailView.as_view(),         name='alert-detail'),
     path('<int:pk>/acknowledge/', views.AcknowledgeAlertView.as_view(),    name='acknowledge-alert'),
     path('<int:pk>/resolve/',     views.ResolveAlertView.as_view(),        name='resolve-alert'),
+    path('report/',               views.ReportIssueView.as_view(),         name='report-issue'),
 
     # Alert rule management
     path('rules/',                views.AlertRuleListView.as_view(),       name='rule-list'),

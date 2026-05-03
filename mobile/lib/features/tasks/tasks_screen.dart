@@ -5,7 +5,10 @@ import '../../core/theme.dart';
 import '../../core/utils.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/shimmer_skeleton.dart';
+import '../../data/models/alert_model.dart';
 import '../../data/models/task_model.dart';
+import '../alerts/alerts_provider.dart';
+import '../auth/auth_provider.dart';
 import 'tasks_provider.dart';
 import 'task_detail_screen.dart';
 
@@ -59,10 +62,22 @@ class _TasksScreenState extends State<TasksScreen>
   Widget build(BuildContext context) {
     return Consumer<TasksProvider>(
       builder: (context, provider, _) {
+        final auth = context.read<AuthProvider>();
+        AlertsProvider? alertsProvider;
+        try {
+          alertsProvider = Provider.of<AlertsProvider>(context, listen: false);
+        } catch (_) {
+          alertsProvider = null;
+        }
+        final showReports = auth.isTechnician && alertsProvider != null;
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar:          _buildAppBar(provider),
-          body:            _buildBody(provider),
+          body:            _buildBody(
+            provider,
+            showReports: showReports,
+            alertsProvider: alertsProvider,
+          ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () async {
               final created = await Navigator.of(context)
@@ -81,7 +96,11 @@ class _TasksScreenState extends State<TasksScreen>
     );
   }
 
-  Widget _buildBody(TasksProvider provider) {
+  Widget _buildBody(
+    TasksProvider provider, {
+    required bool showReports,
+    AlertsProvider? alertsProvider,
+  }) {
     if (provider.isLoading) {
       return ShimmerSkeleton.deviceList();
     }
@@ -99,6 +118,10 @@ class _TasksScreenState extends State<TasksScreen>
 
     return Column(
       children: [
+        if (showReports && alertsProvider != null) ...[
+          _buildCustomerReportsSection(alertsProvider),
+          const SizedBox(height: 6),
+        ],
         _buildSearchBar(provider),
         if (provider.hasActiveFilters) _buildResultsBar(provider),
         const Divider(height: 1),
@@ -434,6 +457,65 @@ class _TasksScreenState extends State<TasksScreen>
       ),
     );
   }
+
+  // ── Customer reports section ─────────────────────────────────────────────
+
+  Widget _buildCustomerReportsSection(AlertsProvider provider) {
+    final reports = provider.activeAlerts
+        .where((a) => a.customerReported)
+        .toList()
+      ..sort((a, b) => b.triggeredAt.compareTo(a.triggeredAt));
+
+    final preview = reports.take(3).toList();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('Customer Reports', style: AppTextStyles.heading3),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  reports.length.toString(),
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (preview.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: AppShadows.card,
+              ),
+              child: Text(
+                'No customer-reported issues right now.',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            )
+          else
+            ...preview.map((a) => _CustomerReportCard(alert: a)),
+        ],
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -606,6 +688,77 @@ class _TaskCard extends StatelessWidget {
       case 'marketing': return AppColors.primaryDark;
       default: return AppColors.primaryLight.withOpacity(0.6);
     }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _CustomerReportCard
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CustomerReportCard extends StatelessWidget {
+  final AlertModel alert;
+  const _CustomerReportCard({required this.alert});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            AppUtils.haptic();
+            Navigator.of(context).pushNamed(
+              AppConstants.alertDetailRoute,
+              arguments: alert,
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: AppShadows.card,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.report_problem_rounded,
+                        size: 16, color: AppColors.primaryDark),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        alert.deviceName,
+                        style: AppTextStyles.caption.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      AppUtils.timeAgo(alert.triggeredAt),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  alert.message,
+                  style: AppTextStyles.body,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

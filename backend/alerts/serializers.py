@@ -23,6 +23,9 @@ class AlertSerializer(serializers.ModelSerializer):
     acknowledged_by_username = serializers.CharField(
         source='acknowledged_by.username', read_only=True, default=None
     )
+    reported_by_username = serializers.CharField(
+        source='reported_by.username', read_only=True, default=None
+    )
     # Flattened fields expected by the mobile AlertModel
     alert_type         = serializers.SerializerMethodField()
     is_resolved        = serializers.SerializerMethodField()
@@ -49,6 +52,7 @@ class AlertSerializer(serializers.ModelSerializer):
             'is_resolved', 'is_acknowledged',
             'triggered_at', 'acknowledged_at', 'resolved_at',
             'acknowledged_by', 'acknowledged_by_username',
+            'customer_reported', 'reported_by', 'reported_by_username', 'reported_at',
         )
         read_only_fields = ('id', 'triggered_at', 'acknowledged_at', 'resolved_at')
 

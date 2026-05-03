@@ -87,6 +87,9 @@ class Alert(models.Model):
     acknowledged_at = models.DateTimeField(null=True, blank=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
     acknowledged_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='acknowledged_alerts')
+    customer_reported = models.BooleanField(default=False)
+    reported_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='customer_reported_alerts')
+    reported_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         ordering = ['-triggered_at']

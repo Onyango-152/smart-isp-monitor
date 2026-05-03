@@ -514,6 +514,22 @@ class DummyData {
       triggeredAt: _ago(minutes: 18),
     ),
     AlertModel(
+      id: 9, deviceId: 2, deviceName: 'Access Switch A',
+      alertType: 'link_flap', severity: AppConstants.severityLow,
+      message: 'Minor link flaps detected on Access Switch A (2 in last hour).',
+      details: {'flap_count': 2},
+      isResolved: false, isAcknowledged: false,
+      triggeredAt: _ago(minutes: 12),
+    ),
+    AlertModel(
+      id: 10, deviceId: 1, deviceName: 'Core Router',
+      alertType: 'cpu_spike', severity: AppConstants.severityLow,
+      message: 'Brief CPU spike on Core Router: 72% (threshold: 70%).',
+      details: {'cpu_usage_pct': 72.0, 'threshold': 70},
+      isResolved: false, isAcknowledged: false,
+      triggeredAt: _ago(minutes: 9),
+    ),
+    AlertModel(
       id: 7, deviceId: 1, deviceName: 'Core Router',
       alertType: 'interface_error', severity: AppConstants.severityLow,
       message: 'Minor interface errors on Core Router: 2 errors',

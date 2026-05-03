@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../features/auth/auth_provider.dart';
 import '../notifications/notifications_screen.dart';
-import '../settings/settings_screen.dart';
+import 'customer_settings_screen.dart';
 import 'customer_home_screen.dart';
 import 'fault_history_screen.dart';
 import '../ai_assistant/ai_assistant_screen.dart';
@@ -57,7 +57,7 @@ class _CustomerShellState extends State<CustomerShell> {
               FaultHistoryScreen(),   // 1 — History
               AIAssistantScreen(),    // 2 — Help
               NotificationsScreen(),  // 3 — Alerts
-              SettingsScreen(),       // 4 — Settings
+              CustomerSettingsScreen(), // 4 — Settings
             ],
           );
 

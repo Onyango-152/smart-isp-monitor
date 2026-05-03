@@ -143,13 +143,17 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _setLoading(true);
     try {
-      await AuthService.verifyEmail(email: email, otp: otp);
+      debugPrint('[AUTH] Verifying email: $email with OTP: $otp');
+      final result = await AuthService.verifyEmail(email: email, otp: otp);
+      debugPrint('[AUTH] Verification successful: $result');
       _isLoading = false;
       notifyListeners();
       return true;
     } on DioException catch (e) {
+      debugPrint('[AUTH] Verification DioException: ${e.response?.statusCode} - ${e.response?.data}');
       return _fail(_extractDioError(e));
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AUTH] Verification error: $e');
       return _fail('Verification failed. Please try again.');
     }
   }
@@ -172,9 +176,21 @@ class AuthProvider extends ChangeNotifier {
 
   // ── Logout ────────────────────────────────────────────────────────────────
   Future<void> logout() async {
-    if (!_useDummyLogin && _refreshToken != null) {
-      await AuthService.revokeToken(_refreshToken!);
+    try {
+      if (!_useDummyLogin && _refreshToken != null) {
+        // Try to revoke token but don't wait too long
+        await AuthService.revokeToken(_refreshToken!).timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            debugPrint('[AUTH] Logout API call timed out, proceeding with local logout');
+          },
+        );
+      }
+    } catch (e) {
+      debugPrint('[AUTH] Logout API error: $e, proceeding with local logout');
     }
+    
+    // Always clear local session regardless of API result
     await AuthService.clearSession();
     await DatabaseHelper.instance.clearAll(); // wipe offline cache
     _currentUser  = null;

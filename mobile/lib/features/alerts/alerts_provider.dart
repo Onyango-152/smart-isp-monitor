@@ -55,6 +55,10 @@ class AlertsProvider extends ChangeNotifier {
   int get highCount =>
       activeAlerts.where((a) => a.severity == AppConstants.severityHigh).length;
 
+    int get customerReportedCount => activeAlerts
+      .where((a) => a.customerReported)
+      .length;
+
   // ── Load ──────────────────────────────────────────────────────────────────
 
   Future<void> loadAlerts() async {
@@ -185,6 +189,9 @@ class AlertsProvider extends ChangeNotifier {
       details: old.details,
       isResolved: isResolved ?? old.isResolved,
       isAcknowledged: isAcknowledged ?? old.isAcknowledged,
+      customerReported: old.customerReported,
+      reportedBy: old.reportedBy,
+      reportedAt: old.reportedAt,
       triggeredAt: old.triggeredAt,
       resolvedAt: resolvedAt ?? old.resolvedAt,
     );

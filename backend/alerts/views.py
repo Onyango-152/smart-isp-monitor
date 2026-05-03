@@ -34,10 +34,14 @@ class AlertListView(generics.ListAPIView):
         ).select_related('rule', 'rule__device').order_by('-triggered_at')
         status_filter = self.request.query_params.get('status')
         device_filter = self.request.query_params.get('device')
+        customer_filter = self.request.query_params.get('customer_reported')
         if status_filter:
             qs = qs.filter(status=status_filter)
         if device_filter:
             qs = qs.filter(rule__device_id=device_filter)
+        if customer_filter is not None:
+            want_customer = customer_filter.lower() in ('1', 'true', 'yes')
+            qs = qs.filter(customer_reported=want_customer)
         return qs
 
 
@@ -96,6 +100,52 @@ class ResolveAlertView(APIView):
         alert.status = 'resolved'
         alert.save()
         return Response(AlertSerializer(alert).data)
+
+
+class ReportIssueView(APIView):
+    """
+    POST /api/alerts/report/
+    Create a customer-reported alert for technician triage.
+
+    Body:
+    {
+        "message": "issue description",
+        "device": 123 (optional)
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        message = (request.data.get('message') or '').strip()
+        device_id = request.data.get('device')
+        if not message:
+            return Response({'error': 'Message is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        device_ids = list(_user_device_ids(request.user))
+        if device_id is not None:
+            try:
+                device_id = int(device_id)
+            except (TypeError, ValueError):
+                return Response({'error': 'Invalid device id.'}, status=status.HTTP_400_BAD_REQUEST)
+            if device_id not in device_ids:
+                return Response({'error': 'Device not found.'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            if not device_ids:
+                return Response({'error': 'No devices available for this account.'}, status=status.HTTP_400_BAD_REQUEST)
+            device_id = device_ids[0]
+
+        device = Device.objects.get(id=device_id)
+        alert = Alert.objects.create(
+            rule=None,
+            device=device,
+            severity='medium',
+            status='new',
+            message=message,
+            customer_reported=True,
+            reported_by=request.user,
+            reported_at=timezone.now(),
+        )
+        return Response(AlertSerializer(alert).data, status=status.HTTP_201_CREATED)
 
 
 class AlertRuleListView(generics.ListCreateAPIView):

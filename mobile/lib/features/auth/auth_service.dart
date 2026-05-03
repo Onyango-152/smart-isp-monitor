@@ -27,9 +27,12 @@ class AuthService {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await _readToken();
-          if (token != null) {
-            options.headers['Authorization'] = 'Bearer $token';
+          final skipAuth = options.extra['skipAuth'] == true;
+          if (!skipAuth) {
+            final token = await _readToken();
+            if (token != null) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
           }
           debugPrint('[API] ${options.method} ${options.path}');
           handler.next(options);
@@ -141,15 +144,17 @@ class AuthService {
   }
   static Future<void> revokeToken(String refreshToken) async {
     try {
-      final access = await getAccessToken();
+      debugPrint('[AUTH] Attempting to revoke token on server');
       await _dio.post(
         AppConstants.logoutEndpoint,
         data: {'refresh': refreshToken},
         options: Options(
-          headers: {'Authorization': 'Bearer $access'},
+          extra: {'skipAuth': true},
         ),
       );
-    } catch (_) {
+      debugPrint('[AUTH] Token revoked successfully');
+    } catch (e) {
+      debugPrint('[AUTH] Token revocation failed: $e (continuing with local logout)');
       // Best-effort: always proceed with local logout even if API fails.
     }
   }

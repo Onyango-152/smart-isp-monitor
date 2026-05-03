@@ -10,6 +10,9 @@ class AlertModel {
   final Map<String, dynamic>? details;
   final bool    isResolved;
   final bool    isAcknowledged;
+  final bool    customerReported;
+  final String? reportedBy;
+  final String? reportedAt;
   final String  triggeredAt;
   final String? resolvedAt;
 
@@ -23,6 +26,9 @@ class AlertModel {
     this.details,
     required this.isResolved,
     required this.isAcknowledged,
+    this.customerReported = false,
+    this.reportedBy,
+    this.reportedAt,
     required this.triggeredAt,
     this.resolvedAt,
   });
@@ -38,6 +44,9 @@ class AlertModel {
       details:        json['details']         as Map<String, dynamic>?,
       isResolved:     json['is_resolved']     as bool,
       isAcknowledged: json['is_acknowledged'] as bool,
+      customerReported: (json['customer_reported'] as bool?) ?? false,
+      reportedBy:       json['reported_by_username'] as String?,
+      reportedAt:       json['reported_at'] as String?,
       triggeredAt:    json['triggered_at']    as String,
       resolvedAt:     json['resolved_at']     as String?,
     );
@@ -54,6 +63,9 @@ class AlertModel {
       'details':          details,
       'is_resolved':      isResolved,
       'is_acknowledged':  isAcknowledged,
+      'customer_reported': customerReported,
+      'reported_by_username': reportedBy,
+      'reported_at':       reportedAt,
       'triggered_at':     triggeredAt,
       'resolved_at':      resolvedAt,
     };

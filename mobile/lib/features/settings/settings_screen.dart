@@ -52,19 +52,23 @@ class SettingsProvider extends ChangeNotifier {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.title = 'Settings'});
+
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => SettingsProvider(),
-      child:  const _SettingsContent(),
+      child: _SettingsContent(title: title),
     );
   }
 }
 
 class _SettingsContent extends StatelessWidget {
-  const _SettingsContent();
+  const _SettingsContent({required this.title});
+
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +92,7 @@ class _SettingsContent extends StatelessWidget {
             ),
           ),
         ),
-        title: const Text('Settings',
+        title: Text(title,
             style: TextStyle(color: AppColors.textOnDark)),
       ),
       body: ListView(
@@ -361,6 +365,7 @@ class _SettingsContent extends StatelessWidget {
   // ── Logout ────────────────────────────────────────────────────────────────
 
   void _confirmLogout(BuildContext context, AuthProvider auth) {
+    final parentContext = context;
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -374,12 +379,15 @@ class _SettingsContent extends StatelessWidget {
           FilledButton(
             onPressed: () async {
               Navigator.of(ctx).pop();
-              await auth.logout();
-              if (context.mounted) {
-                Navigator.of(context, rootNavigator: true)
-                    .pushNamedAndRemoveUntil(
-                  AppConstants.loginRoute, (r) => false);
+              try {
+                await auth.logout();
+              } catch (_) {
+                // Still navigate to login even if logout cleanup fails.
               }
+              if (!parentContext.mounted) return;
+              Navigator.of(parentContext, rootNavigator: true)
+                  .pushNamedAndRemoveUntil(
+                AppConstants.loginRoute, (r) => false);
             },
             style: FilledButton.styleFrom(
                 backgroundColor: AppColors.offline),

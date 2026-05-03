@@ -8,7 +8,7 @@ import '../dashboard/dashboard_provider.dart';
 import '../dashboard/technician_dashboard.dart';
 import '../devices/device_list_screen.dart';
 import '../devices/device_provider.dart';
-import '../settings/settings_screen.dart';
+import '../technician/technician_settings_screen.dart';
 import '../reports/reports_provider.dart';
 import '../tasks/tasks_provider.dart';
 
@@ -73,7 +73,7 @@ class _TechnicianShellState extends State<TechnicianShell> {
               TechnicianDashboard(), // 0 — Home
               DeviceListScreen(),    // 1 — Devices
               AlertsScreen(),        // 2 — Alerts
-              SettingsScreen(),      // 3 — Settings
+              TechnicianSettingsScreen(), // 3 — Settings
             ],
           );
 

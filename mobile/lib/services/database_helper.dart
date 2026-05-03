@@ -21,7 +21,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static const _dbName    = 'smart_isp.db';
-  static const _dbVersion = 1;
+  static const _dbVersion = 2;
 
   Database? _db;
 
@@ -75,6 +75,9 @@ class DatabaseHelper {
         details          TEXT,
         is_resolved      INTEGER NOT NULL DEFAULT 0,
         is_acknowledged  INTEGER NOT NULL DEFAULT 0,
+        customer_reported INTEGER NOT NULL DEFAULT 0,
+        reported_by      TEXT,
+        reported_at      TEXT,
         triggered_at     TEXT    NOT NULL,
         resolved_at      TEXT,
         cached_at        TEXT    NOT NULL
@@ -245,6 +248,9 @@ class DatabaseHelper {
           'details':         a.details != null ? jsonEncode(a.details) : null,
           'is_resolved':     a.isResolved     ? 1 : 0,
           'is_acknowledged': a.isAcknowledged ? 1 : 0,
+          'customer_reported': a.customerReported ? 1 : 0,
+          'reported_by':     a.reportedBy,
+          'reported_at':     a.reportedAt,
           'triggered_at':    a.triggeredAt,
           'resolved_at':     a.resolvedAt,
           'cached_at':       _now(),
@@ -275,6 +281,9 @@ class DatabaseHelper {
         'details':         a.details != null ? jsonEncode(a.details) : null,
         'is_resolved':     a.isResolved     ? 1 : 0,
         'is_acknowledged': a.isAcknowledged ? 1 : 0,
+        'customer_reported': a.customerReported ? 1 : 0,
+        'reported_by':     a.reportedBy,
+        'reported_at':     a.reportedAt,
         'triggered_at':    a.triggeredAt,
         'resolved_at':     a.resolvedAt,
         'cached_at':       _now(),
@@ -301,6 +310,9 @@ class DatabaseHelper {
           : null,
       isResolved:      (r['is_resolved']     as int) == 1,
       isAcknowledged:  (r['is_acknowledged'] as int) == 1,
+      customerReported: (r['customer_reported'] as int?) == 1,
+      reportedBy:      r['reported_by'] as String?,
+      reportedAt:      r['reported_at'] as String?,
       triggeredAt:     r['triggered_at']    as String,
       resolvedAt:      r['resolved_at']     as String?,
     );

@@ -27,6 +27,8 @@ class ManagerDashboardProvider extends ChangeNotifier {
       devices.where((d) => d.status == 'degraded').length;
   int get activeAlerts => alerts.where((a) => !a.isResolved).length;
   int get resolvedAlerts => alerts.where((a) => a.isResolved).length;
+  int get customerReportedActive =>
+      alerts.where((a) => a.customerReported && !a.isResolved).length;
 
   double get networkUptimePct {
     if (devices.isEmpty) return 0;
@@ -200,38 +202,55 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   }
 
   Widget _buildKpiRow(ManagerDashboardProvider provider) {
-    return Row(
+    return Column(
       children: [
-        _KpiCard(
-          label: 'Uptime',
-          value: '${provider.networkUptimePct.toStringAsFixed(1)}%',
-          icon: Icons.timeline,
-          color: provider.networkUptimePct >= 90
-              ? AppColors.primary
-              : AppColors.primaryLight,
+        Row(
+          children: [
+            _KpiCard(
+              label: 'Uptime',
+              value: '${provider.networkUptimePct.toStringAsFixed(1)}%',
+              icon: Icons.timeline,
+              color: provider.networkUptimePct >= 90
+                  ? AppColors.primary
+                  : AppColors.primaryLight,
+            ),
+            const SizedBox(width: 10),
+            _KpiCard(
+              label: 'Open Alerts',
+              value: provider.activeAlerts.toString(),
+              icon: Icons.notifications_active,
+              color: provider.activeAlerts > 0
+                  ? AppColors.primaryDark
+                  : AppColors.primary,
+            ),
+            const SizedBox(width: 10),
+            _KpiCard(
+              label: 'MTTR',
+              value: '${provider.mttrHours.toStringAsFixed(1)}h',
+              icon: Icons.timer_outlined,
+              color: AppColors.primaryLight,
+            ),
+            const SizedBox(width: 10),
+            _KpiCard(
+              label: 'Devices',
+              value: provider.totalDevices.toString(),
+              icon: Icons.router,
+              color: AppColors.primaryDark,
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        _KpiCard(
-          label: 'Open Alerts',
-          value: provider.activeAlerts.toString(),
-          icon: Icons.notifications_active,
-          color: provider.activeAlerts > 0
-              ? AppColors.primaryDark
-              : AppColors.primary,
-        ),
-        const SizedBox(width: 10),
-        _KpiCard(
-          label: 'MTTR',
-          value: '${provider.mttrHours.toStringAsFixed(1)}h',
-          icon: Icons.timer_outlined,
-          color: AppColors.primaryLight,
-        ),
-        const SizedBox(width: 10),
-        _KpiCard(
-          label: 'Devices',
-          value: provider.totalDevices.toString(),
-          icon: Icons.router,
-          color: AppColors.primaryDark,
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _KpiCard(
+              label: 'Customer Reports',
+              value: provider.customerReportedActive.toString(),
+              icon: Icons.report_problem_rounded,
+              color: provider.customerReportedActive > 0
+                  ? AppColors.primaryDark
+                  : AppColors.primary,
+            ),
+          ],
         ),
       ],
     );
