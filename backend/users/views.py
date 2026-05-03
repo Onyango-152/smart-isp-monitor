@@ -309,6 +309,22 @@ class ClientListView(generics.ListAPIView):
         return User.objects.filter(role='customer').order_by('-date_joined')
 
 
+class TechnicianListView(generics.ListAPIView):
+    """
+    GET /api/users/technicians/
+    Returns all users with role='technician'.
+    Accessible to managers and admins only.
+    """
+    serializer_class   = UserListSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role not in ('manager', 'admin') and not user.is_staff:
+            return User.objects.none()
+        return User.objects.filter(role='technician').order_by('-date_joined')
+
+
 class VerifyEmailView(APIView):
     """
     POST /api/users/verify-email/

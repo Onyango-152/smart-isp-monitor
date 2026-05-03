@@ -54,19 +54,19 @@ class _ClientsScreenState extends State<ClientsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar:          _buildAppBar(),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final created = await Navigator.of(context)
-              .pushNamed(AppConstants.clientFormRoute);
-          if (created == true && mounted) {
-            AppUtils.showSnackbar(context, 'Client added');
-          }
-        },
-        backgroundColor: AppColors.primary,
-        icon:  const Icon(Icons.person_add_rounded, color: Colors.white),
-        label: const Text('Add Client',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-      ),
+      // floatingActionButton: FloatingActionButton.extended(
+      //   onPressed: () async {
+      //     final created = await Navigator.of(context)
+      //         .pushNamed(AppConstants.clientFormRoute);
+      //     if (created == true && mounted) {
+      //       AppUtils.showSnackbar(context, 'Client added');
+      //     }
+      //   },
+      //   backgroundColor: AppColors.primary,
+      //   icon:  const Icon(Icons.person_add_rounded, color: Colors.white),
+      //   label: const Text('Add Client',
+      //       style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+      // ),
       body: Consumer<ClientsProvider>(
         builder: (context, provider, _) {
           if (provider.isLoading) {

@@ -28,6 +28,7 @@ class MonitoringTask(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     device = models.ForeignKey(Device, on_delete=models.CASCADE, null=True, blank=True, related_name='monitoring_tasks')
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tasks')
     task_type = models.CharField(max_length=50, choices=TASK_TYPE_CHOICES)
     interval = models.IntegerField(help_text="Interval in seconds")  # e.g., 300 for 5 minutes
     timeout = models.IntegerField(default=5, help_text="Timeout in seconds")

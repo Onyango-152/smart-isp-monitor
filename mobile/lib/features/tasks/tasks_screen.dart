@@ -9,8 +9,10 @@ import '../../data/models/alert_model.dart';
 import '../../data/models/task_model.dart';
 import '../alerts/alerts_provider.dart';
 import '../auth/auth_provider.dart';
+import '../devices/device_provider.dart';
 import 'tasks_provider.dart';
 import 'task_detail_screen.dart';
+import 'task_form_screen.dart';
 
 /// TasksScreen shows all scheduled monitoring tasks in two tabs:
 /// Enabled (active) and Disabled.
@@ -41,6 +43,8 @@ class _TasksScreenState extends State<TasksScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     final provider = context.read<TasksProvider>();
+    final auth = context.read<AuthProvider>();
+    provider.setAssignedToFilter(auth.isTechnician ? auth.currentUser?.id : null);
     if (provider.searchQuery.isNotEmpty) {
       _searchController.text = provider.searchQuery;
     }
@@ -80,8 +84,19 @@ class _TasksScreenState extends State<TasksScreen>
           ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () async {
-              final created = await Navigator.of(context)
-                  .pushNamed(AppConstants.taskFormRoute);
+              final created = await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => MultiProvider(
+                    providers: [
+                      ChangeNotifierProvider.value(value: provider),
+                      ChangeNotifierProvider<DeviceProvider>(
+                        create: (_) => DeviceProvider()..loadDevices(),
+                      ),
+                    ],
+                    child: TaskFormScreen(),
+                  ),
+                ),
+              );
               if (created == true && mounted) {
                 AppUtils.showSnackbar(context, 'Task created');
               }

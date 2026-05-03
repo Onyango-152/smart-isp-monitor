@@ -5,6 +5,7 @@ from .models import MonitoringTask, MonitoringReport, SystemHealth
 class MonitoringTaskSerializer(serializers.ModelSerializer):
     device_name = serializers.CharField(source='device.name', read_only=True, default=None)
     task_type_display = serializers.CharField(source='get_task_type_display', read_only=True)
+    assigned_to_username = serializers.CharField(source='assigned_to.username', read_only=True, default=None)
 
     class Meta:
         model = MonitoringTask
@@ -12,6 +13,7 @@ class MonitoringTaskSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'device', 'device_name',
             'task_type', 'task_type_display', 'interval', 'timeout',
             'enabled', 'last_run', 'last_status', 'created_at', 'updated_at',
+            'assigned_to', 'assigned_to_username',
         )
         read_only_fields = ('id', 'last_run', 'last_status', 'created_at', 'updated_at')
 

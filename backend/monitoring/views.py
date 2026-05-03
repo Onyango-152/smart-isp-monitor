@@ -113,7 +113,10 @@ class MonitoringTaskListView(generics.ListCreateAPIView):
         else:
             org_ids    = Membership.objects.filter(user=self.request.user).values_list('organisation_id', flat=True)
             device_ids = Device.objects.filter(organisation_id__in=org_ids).values_list('id', flat=True)
-        return MonitoringTask.objects.filter(device_id__in=device_ids).select_related('device').order_by('name')
+        qs = MonitoringTask.objects.filter(device_id__in=device_ids).select_related('device', 'assigned_to').order_by('name')
+        if self.request.user.role == 'technician':
+            qs = qs.filter(assigned_to=self.request.user)
+        return qs
 
 
 class MonitoringTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -128,7 +131,10 @@ class MonitoringTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         else:
             org_ids    = Membership.objects.filter(user=self.request.user).values_list('organisation_id', flat=True)
             device_ids = Device.objects.filter(organisation_id__in=org_ids).values_list('id', flat=True)
-        return MonitoringTask.objects.filter(device_id__in=device_ids).select_related('device')
+        qs = MonitoringTask.objects.filter(device_id__in=device_ids).select_related('device', 'assigned_to')
+        if self.request.user.role == 'technician':
+            qs = qs.filter(assigned_to=self.request.user)
+        return qs
 
 
 class RunMonitoringTaskView(APIView):

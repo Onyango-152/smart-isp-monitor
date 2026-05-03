@@ -34,6 +34,7 @@ class AppConstants {
   static const String reportIssueEndpoint     = '/alerts/report/';
   static const String tasksEndpoint           = '/monitoring/tasks/';
   static const String clientsEndpoint         = '/users/clients/';
+  static const String techniciansEndpoint     = '/users/technicians/';
   static const String dashboardEndpoint       = '/dashboard/summary/';
   static const String customerDashboardEndpoint = '/dashboard/customer/';
   static const String reportsExportEndpoint   = '/monitoring/export/';

@@ -8,12 +8,12 @@ class MonitoringTaskAdmin(admin.ModelAdmin):
     Monitoring Task Admin Interface
     Manages scheduled monitoring tasks that collect metrics from devices.
     """
-    list_display = ('name', 'device', 'task_type', 'interval', 'enabled', 'last_run', 'last_status')
+    list_display = ('name', 'device', 'assigned_to', 'task_type', 'interval', 'enabled', 'last_run', 'last_status')
     list_filter = ('task_type', 'enabled', 'last_status', 'created_at')
     search_fields = ('name', 'device__name')
     fieldsets = (
         ('Task Information', {
-            'fields': ('name', 'description', 'device', 'task_type')
+            'fields': ('name', 'description', 'device', 'assigned_to', 'task_type')
         }),
         ('Scheduling', {
             'fields': ('interval', 'timeout', 'enabled')

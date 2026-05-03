@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../core/utils.dart';
 import '../../data/models/task_model.dart';
+import '../../data/models/user_model.dart';
+import '../../services/api_client.dart';
+import '../auth/auth_provider.dart';
 import '../devices/device_provider.dart';
 import 'tasks_provider.dart';
 
@@ -35,8 +38,13 @@ class _TaskFormScreenState extends State<TaskFormScreen>
   bool    _enabled      = true;
   int?    _deviceId;
   String? _deviceName;
+  int?    _assignedToId;
   bool    _isSaving     = false;
   String? _templateKey;
+  bool    _techLoading  = false;
+  bool    _techLoaded   = false;
+  String? _techError;
+  List<UserModel> _technicians = [];
 
   TaskModel? _existingTask;
   bool get _isEditing => _existingTask != null;
@@ -191,9 +199,11 @@ class _TaskFormScreenState extends State<TaskFormScreen>
         _enabled      = args.enabled;
         _deviceId     = args.deviceId;
         _deviceName   = args.deviceName;
+        _assignedToId = args.assignedToId;
       }
       _animCtrl.forward();
     }
+    _loadTechniciansIfNeeded();
   }
 
   @override
@@ -206,6 +216,58 @@ class _TaskFormScreenState extends State<TaskFormScreen>
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
+  bool get _canAssignTechnicians {
+    final auth = context.read<AuthProvider>();
+    return auth.isManager || auth.isAdmin;
+  }
+
+  Future<void> _loadTechniciansIfNeeded({bool force = false}) async {
+    if (_techLoaded && !force) return;
+    if (!_canAssignTechnicians) {
+      _techLoaded = true;
+      return;
+    }
+
+    setState(() {
+      _techLoading = true;
+      _techError = null;
+    });
+
+    try {
+      final list = await ApiClient.getTechnicians();
+      if (!mounted) return;
+      setState(() {
+        _technicians = list;
+        _techError = null;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _techError = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _techError = 'Failed to load technicians.');
+    } finally {
+      if (mounted) {
+        setState(() => _techLoading = false);
+      }
+      _techLoaded = true;
+    }
+  }
+
+  String? _resolveTechnicianName(int? id) {
+    if (id == null) return null;
+    for (final tech in _technicians) {
+      if (tech.id == id) return tech.username;
+    }
+    return null;
+  }
+
+  int? _assignedDropdownValue() {
+    if (_assignedToId == null) return null;
+    final exists = _technicians.any((t) => t.id == _assignedToId);
+    return exists ? _assignedToId : null;
+  }
+
   Future<void> _handleSave() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
@@ -213,7 +275,12 @@ class _TaskFormScreenState extends State<TaskFormScreen>
     setState(() => _isSaving = true);
 
     final provider = context.read<TasksProvider>();
+    final auth = context.read<AuthProvider>();
+    final canAssign = auth.isManager || auth.isAdmin;
     final now = DateTime.now().toUtc().toIso8601String();
+    final assignedToId = canAssign ? _assignedToId : _existingTask?.assignedToId;
+    final assignedToName = _resolveTechnicianName(assignedToId)
+      ?? _existingTask?.assignedToName;
 
     final task = TaskModel(
       id:           _existingTask?.id ?? provider.nextId,
@@ -230,6 +297,8 @@ class _TaskFormScreenState extends State<TaskFormScreen>
       lastStatus:   _existingTask?.lastStatus ?? 'not_done',
       createdAt:    _existingTask?.createdAt ?? now,
       updatedAt:    _isEditing ? now : null,
+      assignedToId: assignedToId,
+      assignedToName: assignedToName,
     );
 
     final success = _isEditing
@@ -274,6 +343,10 @@ class _TaskFormScreenState extends State<TaskFormScreen>
                     _buildScheduleSection(),
                     const SizedBox(height: 20),
                     _buildTargetSection(),
+                    if (_canAssignTechnicians) ...[
+                      const SizedBox(height: 20),
+                      _buildAssignmentSection(),
+                    ],
                     const SizedBox(height: 20),
                     _buildDetailsSection(),
                     const SizedBox(height: 28),
@@ -475,6 +548,72 @@ class _TaskFormScreenState extends State<TaskFormScreen>
               : 'Task will target "$_deviceName" only',
           style: AppTextStyles.caption,
         ),
+      ],
+    );
+  }
+
+  // ── Assignment Section ───────────────────────────────────────────────────
+
+  Widget _buildAssignmentSection() {
+    return _FormSection(
+      title: 'Assignment',
+      icon:  Icons.badge_outlined,
+      children: [
+        if (_techLoading) ...[
+          Row(
+            children: [
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 10),
+              Text('Loading technicians…', style: AppTextStyles.caption),
+            ],
+          ),
+        ] else if (_techError != null) ...[
+          Text(
+            _techError!,
+            style: AppTextStyles.caption.copyWith(color: AppColors.offline),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => _loadTechniciansIfNeeded(force: true),
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Retry'),
+          ),
+        ] else ...[
+          _buildDropdown<int?>(
+            label: 'Assigned Technician',
+            icon:  Icons.engineering_rounded,
+            value: _assignedDropdownValue(),
+            items: [
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('Unassigned'),
+              ),
+              ..._technicians.map((t) => DropdownMenuItem<int?>(
+                value: t.id,
+                child: Text(t.username),
+              )),
+            ],
+            onChanged: (v) => setState(() => _assignedToId = v),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _assignedToId == null
+                ? 'Unassigned tasks are hidden from technicians.'
+                : 'Assigned to ${_resolveTechnicianName(_assignedToId) ?? "technician"}',
+            style: AppTextStyles.caption,
+          ),
+          if (_technicians.isEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'No technicians found. Add a technician to assign tasks.',
+              style: AppTextStyles.caption,
+            ),
+          ],
+        ],
       ],
     );
   }

@@ -433,6 +433,17 @@ class ApiClient {
     }
   }
 
+  static Future<List<UserModel>> getTechnicians() async {
+    try {
+      final res = await _dio.get(AppConstants.techniciansEndpoint);
+      return _asList(res.data)
+          .map((j) => UserModel.fromJson(j as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      _handleDioError(e);
+    }
+  }
+
   // ── Dashboard ────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> getDashboardSummary() async {

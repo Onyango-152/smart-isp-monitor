@@ -21,7 +21,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static const _dbName    = 'smart_isp.db';
-  static const _dbVersion = 2;
+  static const _dbVersion = 3;
 
   Database? _db;
 
@@ -79,6 +79,8 @@ class DatabaseHelper {
         reported_by      TEXT,
         reported_at      TEXT,
         triggered_at     TEXT    NOT NULL,
+        assigned_to_id   INTEGER,
+        assigned_to_name TEXT,
         resolved_at      TEXT,
         cached_at        TEXT    NOT NULL
       )
@@ -366,6 +368,8 @@ class DatabaseHelper {
     'last_status':  t.lastStatus,
     'created_at':   t.createdAt,
     'updated_at':   t.updatedAt,
+    'assigned_to_id': t.assignedToId,
+    'assigned_to_name': t.assignedToName,
     'cached_at':    _now(),
   };
 
@@ -384,6 +388,8 @@ class DatabaseHelper {
       lastStatus:   r['last_status']   as String,
       createdAt:    r['created_at']    as String,
       updatedAt:    r['updated_at']    as String?,
+      assignedToId: r['assigned_to_id'] as int?,
+      assignedToName: r['assigned_to_name'] as String?,
     );
   }
 

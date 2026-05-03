@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../data/models/task_model.dart';
 import '../../data/dummy_data.dart';
 import '../../services/api_client.dart';
@@ -24,12 +25,14 @@ class TasksProvider extends ChangeNotifier {
 
   // ── Data ──────────────────────────────────────────────────────────────────
   List<TaskModel> _allTasks = [];
+  List<TaskModel> _scopedTasks = [];
   List<TaskModel> _filteredTasks = [];
 
   // ── Filter state ──────────────────────────────────────────────────────────
   String _searchQuery = '';
   String _typeFilter = 'all'; // all | snmp | ping | http | tcp | dns
   String _statusFilter = 'all'; // all | success | failed | pending
+  int? _assignedToFilterId;
 
   // ── Getters — state ───────────────────────────────────────────────────────
   bool get isLoading => _isLoading;
@@ -38,7 +41,7 @@ class TasksProvider extends ChangeNotifier {
 
   // ── Getters — data ────────────────────────────────────────────────────────
   List<TaskModel> get tasks => _filteredTasks;
-  int get totalCount => _allTasks.length;
+  int get totalCount => _scopedTasks.length;
   int get filteredCount => _filteredTasks.length;
 
   /// Enabled tasks (sorted: failed first, then by last run).
@@ -61,10 +64,10 @@ class TasksProvider extends ChangeNotifier {
       _filteredTasks.where((t) => !t.enabled).toList();
 
   // ── Getters — counts ──────────────────────────────────────────────────────
-  int get enabledCount => _allTasks.where((t) => t.enabled).length;
-  int get disabledCount => _allTasks.where((t) => !t.enabled).length;
+  int get enabledCount => _scopedTasks.where((t) => t.enabled).length;
+    int get disabledCount => _scopedTasks.where((t) => !t.enabled).length;
   int get failedCount =>
-      _allTasks.where((t) => t.enabled && t.lastStatus == 'failed').length;
+      _scopedTasks.where((t) => t.enabled && t.lastStatus == 'failed').length;
 
   /// True when any filter or search is active.
   bool get hasActiveFilters =>
@@ -144,6 +147,13 @@ class TasksProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setAssignedToFilter(int? userId) {
+    if (_assignedToFilterId == userId) return;
+    _assignedToFilterId = userId;
+    _applyFilters();
+    notifyListeners();
+  }
+
   // ── Actions ───────────────────────────────────────────────────────────────
 
   /// Toggle a task's enabled state.
@@ -177,7 +187,9 @@ class TasksProvider extends ChangeNotifier {
       _allTasks.insert(0, task);
       _applyFilters();
       notifyListeners();
-      await DatabaseHelper.instance.upsertTask(task);
+      if (!kIsWeb) {
+        await DatabaseHelper.instance.upsertTask(task);
+      }
       return true;
     } catch (_) {
       return false;
@@ -192,7 +204,9 @@ class TasksProvider extends ChangeNotifier {
       _allTasks[index] = task;
       _applyFilters();
       notifyListeners();
-      await DatabaseHelper.instance.upsertTask(task);
+      if (!kIsWeb) {
+        await DatabaseHelper.instance.upsertTask(task);
+      }
       return true;
     } catch (_) {
       return false;
@@ -205,7 +219,9 @@ class TasksProvider extends ChangeNotifier {
       _allTasks.removeWhere((t) => t.id == taskId);
       _applyFilters();
       notifyListeners();
-      await DatabaseHelper.instance.deleteTask(taskId);
+      if (!kIsWeb) {
+        await DatabaseHelper.instance.deleteTask(taskId);
+      }
       return true;
     } catch (_) {
       return false;
@@ -290,7 +306,11 @@ class TasksProvider extends ChangeNotifier {
   // ── Private ───────────────────────────────────────────────────────────────
 
   void _applyFilters() {
-    _filteredTasks = _allTasks.where((task) {
+    _scopedTasks = _assignedToFilterId == null
+        ? List<TaskModel>.from(_allTasks)
+        : _allTasks.where((t) => t.assignedToId == _assignedToFilterId).toList();
+
+    _filteredTasks = _scopedTasks.where((task) {
       // ── Text search ───────────────────────────────────────────────
       final q = _searchQuery;
       if (q.isNotEmpty) {

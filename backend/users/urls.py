@@ -27,6 +27,7 @@ urlpatterns = [
 
     # Manager/admin: list all customer accounts
     path('clients/',         views.ClientListView.as_view(),     name='client-list'),
+    path('technicians/',     views.TechnicianListView.as_view(), name='technician-list'),
 
     # Admin only
     path('',                 views.UserListView.as_view(),       name='user-list'),

@@ -17,6 +17,8 @@ class TaskModel {
   final String  lastStatus;   // success, failed, pending
   final String  createdAt;    // ISO 8601
   final String? updatedAt;
+  final int?    assignedToId;
+  final String? assignedToName;
 
   const TaskModel({
     required this.id,
@@ -32,6 +34,8 @@ class TaskModel {
     this.lastStatus = 'pending',
     required this.createdAt,
     this.updatedAt,
+    this.assignedToId,
+    this.assignedToName,
   });
 
   factory TaskModel.fromJson(Map<String, dynamic> json) {
@@ -49,6 +53,8 @@ class TaskModel {
       lastStatus:   (json['last_status']  as String?) ?? 'pending',
       createdAt:    json['created_at']    as String,
       updatedAt:    json['updated_at']    as String?,
+      assignedToId: json['assigned_to']   as int?,
+      assignedToName: json['assigned_to_username'] as String?,
     );
   }
 
@@ -67,6 +73,7 @@ class TaskModel {
       'last_status': lastStatus,
       'created_at':  createdAt,
       'updated_at':  updatedAt,
+      'assigned_to': assignedToId,
     };
   }
 
@@ -82,6 +89,8 @@ class TaskModel {
     String? lastRun,
     String? lastStatus,
     String? updatedAt,
+    int?    assignedToId,
+    String? assignedToName,
   }) {
     return TaskModel(
       id:           id,
@@ -97,6 +106,8 @@ class TaskModel {
       lastStatus:   lastStatus    ?? this.lastStatus,
       createdAt:    createdAt,
       updatedAt:    updatedAt     ?? this.updatedAt,
+      assignedToId: assignedToId  ?? this.assignedToId,
+      assignedToName: assignedToName ?? this.assignedToName,
     );
   }
 }

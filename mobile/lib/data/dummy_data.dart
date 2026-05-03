@@ -641,6 +641,8 @@ class DummyData {
       enabled: true,
       lastRun: _ago(hours: 6), lastStatus: 'partial',
       createdAt: _ago(days: 14),
+      assignedToId: technicianUser.id,
+      assignedToName: technicianUser.username,
     ),
     TaskModel(
       id: 2, name: 'CO site survey',
@@ -659,6 +661,8 @@ class DummyData {
       enabled: true,
       lastRun: _ago(hours: 3), lastStatus: 'not_done',
       createdAt: _ago(days: 7),
+      assignedToId: technicianUser.id,
+      assignedToName: technicianUser.username,
     ),
     TaskModel(
       id: 4, name: 'Preventive maintenance',
@@ -677,6 +681,8 @@ class DummyData {
       enabled: true,
       lastRun: _ago(days: 2), lastStatus: 'partial',
       createdAt: _ago(days: 18),
+      assignedToId: technicianUser.id,
+      assignedToName: technicianUser.username,
     ),
     TaskModel(
       id: 6, name: 'Field audit',
